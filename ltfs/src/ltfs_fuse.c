@@ -537,8 +537,14 @@ int ltfs_fuse_release(const char *path, struct fuse_file_info *fi)
 
 	open_write = (((fi->flags & O_WRONLY) == O_WRONLY) || ((fi->flags & O_RDWR) == O_RDWR));
 	ret = ltfs_fsops_close(file->file_info->dentry_handle, dirty, open_write, true, priv->data);
-	if (write_index)
-		ltfs_sync_index(SYNC_CLOSE, true, priv->data);
+	if (write_index) {
+		/* A failed close-time index write means the file's data may not be durably
+		 * on the medium. Surface it (without masking an earlier close/flush error)
+		 * so the FUSE return reflects the failure instead of a false success. */
+		int ret_index = ltfs_sync_index(SYNC_CLOSE, true, priv->data);
+		if (!ret && ret_index)
+			ret = ret_index;
+	}
 
 	_file_close(file->file_info, priv);
 	_free_ltfs_file_handle(file);
@@ -683,7 +689,10 @@ int ltfs_fuse_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
 
 	// HPE MD 12.10.2017 Added to support SNIA 2.4 section 9.2.8 openforwrite
 	// Windows OS finish flushing files here and so openforwrite flag needs to be cleared.
-	if (!((struct dentry *)(file->file_info->dentry_handle))->isdir)
+	// Only clear it when the flush actually succeeded: if the data did not reach the
+	// medium, the file is NOT completely written, so leaving openforwrite set keeps the
+	// index from recording a failed transfer as a clean, closed file.
+	if (ret == 0 && !((struct dentry *)(file->file_info->dentry_handle))->isdir)
 	{
 		acquirewrite_mrsw(&((struct dentry *)(file->file_info->dentry_handle))->meta_lock);
 		((struct dentry *)(file->file_info->dentry_handle))->openforwrite = false;
@@ -1098,9 +1107,14 @@ int ltfs_fuse_write(const char *path, const char *buf, size_t size, fuse_off_t o
 
 	ret = ltfs_fsops_write(file->file_info->dentry_handle, buf, size, offset, true, priv->data);
 
-	if (ret == -LTFS_NO_SPACE)
-		ret = 0;
-
+	/*
+	 * Do NOT mask -LTFS_NO_SPACE as a successful write. By the time it reaches
+	 * here it means the medium is genuinely full - a buffered block could not be
+	 * committed to tape - so this data did not make it to the medium. Reporting a
+	 * full-size success would make an application (e.g. Explorer performing a
+	 * move) believe the copy completed and delete the source. Let it propagate as
+	 * ENOSPC so the write visibly fails and the caller can stop.
+	 */
 	if (ret == 0) {
 		ltfs_mutex_lock(&file->lock);
 		file->dirty = true;
