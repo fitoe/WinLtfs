@@ -67,6 +67,24 @@ extern "C" {
 
 #include "libltfs/ltfs_fuse_version.h"
 #include <fuse.h>
+
+/*
+ * WinFsp (native Windows) defines its own fuse_stat/fuse_statvfs/fuse_timespec
+ * and fuse_off_t/fuse_mode_t/fuse_uid_t/fuse_gid_t ABI types in place of the
+ * POSIX types used by libfuse. The FUSE handler signatures below use the
+ * fuse_* names everywhere; on libfuse platforms (and Cygwin, where WinFsp
+ * already aliases them) map them back onto the native types.
+ */
+#if !defined(_WIN32) && !defined(__CYGWIN__)
+#define fuse_stat     stat
+#define fuse_statvfs  statvfs
+#define fuse_timespec timespec
+typedef off_t  fuse_off_t;
+typedef mode_t fuse_mode_t;
+typedef uid_t  fuse_uid_t;
+typedef gid_t  fuse_gid_t;
+#endif
+
 #include "libltfs/ltfs.h"
 #include "libltfs/plugin.h"
 #include "libltfs/uthash.h"
@@ -74,7 +92,7 @@ extern "C" {
 struct ltfs_fuse_data {
 	bool first_parsing_pass;       /**< Just looking for a config file? If so, don't print help */
 
-	struct statvfs fs_stats;       /**< Filesystem stats */
+	struct fuse_statvfs fs_stats;  /**< Filesystem stats (WinFsp ABI type on Windows) */
 
 	pid_t pid_orig;                /**< Process ID of LTFS at launched (before background exec) */
 

@@ -51,4 +51,11 @@
 
 #define FUSE_USE_VERSION 26
 
+/* WinFsp build: use the extended stat (fuse_stat_ex) so handlers can report
+ * Windows file attributes (UF_ARCHIVE etc.) through st_flags. Must be defined
+ * before <fuse.h> in every translation unit, which this header precedes. */
+#ifdef _WIN32
+#define FSP_FUSE_USE_STAT_EX 1
+#endif
+
 #endif /* __ltfs_fuse_version_h__ */
