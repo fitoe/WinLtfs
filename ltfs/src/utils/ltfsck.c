@@ -1361,7 +1361,11 @@ void print_volume_info(struct ltfs_volume *vol)
 	ltfsmsg(LTFS_INFO, "16026I",
 			t_st->tm_year+1900, t_st->tm_mon+1, t_st->tm_mday,
 			t_st->tm_hour, t_st->tm_min, t_st->tm_sec, format_time.tv_nsec,
+#ifdef mingw_PLATFORM
+			"   ");
+#else
 			t_st->tm_zone);
+#endif
 
 	ltfsmsg(LTFS_INFO, "16027I", ltfs_get_blocksize(vol));
 	ltfsmsg(LTFS_INFO, "16028I", ltfs_get_compression(vol) ? "Enabled" : "Disabled");

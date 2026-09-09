@@ -87,11 +87,10 @@
 #include <ICU/unicode/utf8.h>
 #include <ICU/unicode/ustring.h>
 #else
-/* Added to fix Windows compilation */
-#ifndef HPE_mingw_BUILD
+/* Modern ICU on MinGW needs these too (the old HPE_mingw_BUILD exclusion
+ * predates MSYS2's ICU packages) */
 #include <unicode/utf8.h>
 #include <unicode/ustring.h>
-#endif
 #endif
 
 #include "ltfs_error.h"

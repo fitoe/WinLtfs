@@ -208,15 +208,6 @@ struct tm *get_win32_localtime(const ltfs_time_t *timep)
 	buffer_localtime.tm_wday  = t->tm_wday;
 	buffer_localtime.tm_yday  = t->tm_yday;
 	buffer_localtime.tm_isdst = t->tm_isdst;
-#if 1
-	buffer_localtime.tm_zone  = "   ";
-#else
-	if (buffer_localtime.tm_isdst) {
-		buffer_localtime.tm_zone  = _tzname[1];
-	} else {
-		buffer_localtime.tm_zone  = _tzname[0];
-	}
-#endif
 
 	return &buffer_localtime;
 }
@@ -239,11 +230,6 @@ struct tm *get_win32_gmtime(const ltfs_time_t *timep)
 	buffer_gmtime.tm_wday  = t->tm_wday;
 	buffer_gmtime.tm_yday  = t->tm_yday;
 	buffer_gmtime.tm_isdst = t->tm_isdst;
-#if 1
-	buffer_gmtime.tm_zone  = "   ";
-#else
-	buffer_gmtime.tm_zone  = _tzname[0];
-#endif
 
 	return &buffer_gmtime;
 }

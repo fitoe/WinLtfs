@@ -143,21 +143,36 @@ then
 fi
 
 dnl
-dnl Check for FUSE, libuuid, and libxml2
+dnl FUSE is provided by WinFsp, staged for the build and passed via --with-winfsp
+dnl (WinFsp is not discoverable through pkg-config). UUID generation on Windows
+dnl comes from rpcrt4 (UuidCreate), used directly by libltfs' win_util.c.
 dnl
-PKG_CHECK_MODULES([FUSE_MODULE], [fuse >= 2.6.0])
-PKG_CHECK_MODULES([UUID_MODULE], [uuid >= 1.36])
+AC_ARG_WITH([winfsp],
+    [AS_HELP_STRING([--with-winfsp=DIR],[staged WinFsp FUSE developer files (expects DIR/inc/fuse and DIR/lib)])],
+    [winfsp_dir="$withval"],
+    [winfsp_dir=no])
+if test "x$winfsp_dir" = "xno"; then
+    AC_MSG_ERROR([--with-winfsp=DIR is required (staged WinFsp FUSE developer files)])
+fi
+if test ! -d "$winfsp_dir/inc/fuse"; then
+    AC_MSG_ERROR([$winfsp_dir/inc/fuse not found; pass the staged WinFsp directory to --with-winfsp])
+fi
+FUSE_MODULE_CFLAGS="-I$winfsp_dir/inc/fuse"
+FUSE_MODULE_LIBS="-L$winfsp_dir/lib -lwinfsp-x64"
+AC_SUBST([FUSE_MODULE_CFLAGS])
+AC_SUBST([FUSE_MODULE_LIBS])
+
+UUID_MODULE_CFLAGS=""
+UUID_MODULE_LIBS="-lrpcrt4"
+AC_SUBST([UUID_MODULE_CFLAGS])
+AC_SUBST([UUID_MODULE_LIBS])
+
 PKG_CHECK_MODULES([LIBXML2_MODULE], [libxml-2.0 >= 2.6.16])
 
 dnl
-dnl Check for ICU
+dnl Check for ICU (modern ICU ships icu-uc/icu-i18n rather than a single "icu" module)
 dnl
-ICU_MODULE_CFLAGS="`icu-config --cppflags 2> /dev/null`";
-ICU_MODULE_LIBS="`icu-config --ldflags 2> /dev/null`";
-if test -z "$ICU_MODULE_LIBS"
-then
-    PKG_CHECK_MODULES([ICU_MODULE], [icu >= 0.21])
-fi
+PKG_CHECK_MODULES([ICU_MODULE], [icu-uc icu-i18n])
 
 dnl
 dnl Check for SNMP

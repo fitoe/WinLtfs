@@ -198,9 +198,11 @@ static inline ltfs_thread_t ltfs_thread_self(void)
 #ifdef __APPLE__
 extern uint32_t ltfs_get_thread_id(void);
 #elif defined(HPE_mingw_BUILD)
-static inline void* ltfs_get_thread_id(void)
+static inline uint32_t ltfs_get_thread_id(void)
 {
-	return (pthread_self().p);
+	/* winpthreads' pthread_t is an integer, not the old pthreads-win32
+	 * struct with a .p member; the id is only used as an opaque token. */
+	return (uint32_t)(uintptr_t)pthread_self();
 }
 #else
 static inline uint32_t ltfs_get_thread_id(void)

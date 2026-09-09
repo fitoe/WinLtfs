@@ -66,6 +66,7 @@
 #include <ICU/unicode/utypes.h>
 #include <ICU/unicode/ucnv.h>
 #include <ICU/unicode/unorm.h>
+#include <ICU/unicode/normalizer2.h>
 #else
 
 /* 
@@ -92,6 +93,7 @@
 
 #include <unicode/ucnv.h>
 #include <unicode/unorm.h>
+#include <unicode/normalizer2.h>
 #endif
 
 #include "ltfs.h"
@@ -686,15 +688,24 @@ int _pathname_normalize_nfc_icu(const UChar *src, UChar **dest)
 {
 	UErrorCode err = U_ZERO_ERROR;
 	int32_t destlen;
+	const UNormalizer2 *norm;
 
-	/* Do a quick check to decide whether this string is already normalized. */
-	if (unorm_quickCheck(src, -1, UNORM_NFC, &err) == UNORM_YES) {
+	/* unorm2_getNFCInstance returns an immutable, thread-safe singleton owned by
+	 * ICU - it must not be freed by the caller. */
+	norm = unorm2_getNFCInstance(&err);
+	if (U_FAILURE(err)) {
+		ltfsmsg(LTFS_ERR, "11238E", err);
+		return -LTFS_ICU_ERROR;
+	}
+
+	/* If this string is already normalized, return it unchanged. */
+	if (unorm2_isNormalized(norm, src, -1, &err)) {
 		*dest = (UChar *)src;
 		return 0;
 	}
 	err = U_ZERO_ERROR;
 
-	destlen = unorm_normalize(src, -1, UNORM_NFC, 0, NULL, 0, &err);
+	destlen = unorm2_normalize(norm, src, -1, NULL, 0, &err);
 	if (U_FAILURE(err) && err != U_BUFFER_OVERFLOW_ERROR) {
 		ltfsmsg(LTFS_ERR, "11238E", err);
 		return -LTFS_ICU_ERROR;
@@ -707,7 +718,7 @@ int _pathname_normalize_nfc_icu(const UChar *src, UChar **dest)
 		return -LTFS_NO_MEMORY;
 	}
 
-	unorm_normalize(src, -1, UNORM_NFC, 0, *dest, destlen + 1, &err);
+	unorm2_normalize(norm, src, -1, *dest, destlen + 1, &err);
 	if (U_FAILURE(err)) {
 		ltfsmsg(LTFS_ERR, "11239E", err);
 		free(*dest);
@@ -728,15 +739,24 @@ int _pathname_normalize_nfd_icu(const UChar *src, UChar **dest)
 {
 	UErrorCode err = U_ZERO_ERROR;
 	int32_t destlen;
+	const UNormalizer2 *norm;
 
-	/* Do a quick check to decide whether this string is already normalized. */
-	if (unorm_quickCheck(src, -1, UNORM_NFD, &err) == UNORM_YES) {
+	/* unorm2_getNFDInstance returns an immutable, thread-safe singleton owned by
+	 * ICU - it must not be freed by the caller. */
+	norm = unorm2_getNFDInstance(&err);
+	if (U_FAILURE(err)) {
+		ltfsmsg(LTFS_ERR, "11240E", err);
+		return -LTFS_ICU_ERROR;
+	}
+
+	/* If this string is already normalized, return it unchanged. */
+	if (unorm2_isNormalized(norm, src, -1, &err)) {
 		*dest = (UChar *)src;
 		return 0;
 	}
 	err = U_ZERO_ERROR;
 
-	destlen = unorm_normalize(src, -1, UNORM_NFD, 0, NULL, 0, &err);
+	destlen = unorm2_normalize(norm, src, -1, NULL, 0, &err);
 	if (U_FAILURE(err) && err != U_BUFFER_OVERFLOW_ERROR) {
 		ltfsmsg(LTFS_ERR, "11240E", err);
 		return -LTFS_ICU_ERROR;
@@ -749,7 +769,7 @@ int _pathname_normalize_nfd_icu(const UChar *src, UChar **dest)
 		return -LTFS_NO_MEMORY;
 	}
 
-	unorm_normalize(src, -1, UNORM_NFD, 0, *dest, destlen + 1, &err);
+	unorm2_normalize(norm, src, -1, *dest, destlen + 1, &err);
 	if (U_FAILURE(err)) {
 		ltfsmsg(LTFS_ERR, "11241E", err);
 		free(*dest);

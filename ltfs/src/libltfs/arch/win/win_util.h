@@ -57,15 +57,27 @@
 extern "C" {
 #endif
 
-#if defined(_INC_STAT) || defined(_STAT_H_) || defined(_TYPES_H_)  || defined(_INC_TYPES)
-#error win_util.h must be included first!!!!!
-#endif
+/*
+ * This header used to #error if <sys/stat.h>/<sys/types.h> were included before
+ * it, on the assumption that nothing pulls them in first. That no longer holds:
+ * modern mingw-w64 <uchar.h> includes <wchar.h> (which includes <sys/stat.h>),
+ * so any ICU header (ltfs.h pulls in unicode/utypes.h) now drags <sys/stat.h>
+ * in ahead of this one. The guard is obsolete - off_t width is fixed by the
+ * command-line -D_FILE_OFFSET_BITS=64, not by include order - so it is dropped.
+ * The definitions below are made override-safe instead.
+ */
 
 #include <sys/types.h> /* Used in struct stat definition */
 #ifndef HPE_mingw_BUILD
 #include <sys/stat.h>
 #endif /* HPE_mingw_BUILD */
 #include <unistd.h>    /* Definitions of uid_t and gid_t */
+/* Modern MinGW-w64 no longer defines uid_t/gid_t anywhere */
+#if defined(__MINGW32__) && !defined(__UID_T_TYPE_DEFINED)
+#define __UID_T_TYPE_DEFINED
+typedef unsigned int uid_t;
+typedef unsigned int gid_t;
+#endif
 #include <basetyps.h>  /* Used for UUID related functions */
 #include <winsock2.h>
 #include <windows.h>
@@ -81,7 +93,16 @@ extern "C" {
 
 #define WIN32_LEAN_AND_MEAN
 
-/* linux unique status defined in sys/stat.h */
+/* POSIX group/other permission bits: absent on Windows, so LTFS treats them as
+ * 0. Modern mingw-w64 <sys/stat.h> defines them (and may be included ahead of
+ * this header via the ICU/<uchar.h> chain), so #undef first to force the
+ * Windows values without a redefinition warning. */
+#undef S_IRGRP
+#undef S_IROTH
+#undef S_IRWXG
+#undef S_IRWXO
+#undef S_IWGRP
+#undef S_IWOTH
 #define S_IRGRP 0
 #define S_IROTH 0
 #define S_IRWXG 0
@@ -227,22 +248,13 @@ struct ltfs_timespec {
 	long		tv_nsec;
 };
 
-#ifndef _TM_DEFINED
-#define _TM_DEFINED
-struct tm
-{
-    int tm_sec;
-    int tm_min;
-    int tm_hour;
-    int tm_mday;
-    int tm_mon;
-    int tm_year;
-    int tm_wday;
-    int tm_yday;
-    int tm_isdst;
-    char *tm_zone;
-};/* End structure*/
-#endif /* _TM_DEFINED */
+/*
+ * Use the system <time.h> struct tm. This used to redefine struct tm (guarded
+ * by _TM_DEFINED) to add a BSD-style tm_zone member, but modern mingw-w64
+ * defines struct tm unconditionally (only the file-level _INC_CORECRT_WTIME
+ * guard, not _TM_DEFINED), so the redefinition now collides. The extra tm_zone
+ * was only ever set to "   " on Windows and is no longer referenced.
+ */
 
 /* time zone */
 #define TIMEZONE_UTC "Coordinated Universal Time"
@@ -267,7 +279,7 @@ struct _stat_libltfs
 {
 	_dev_t  st_dev;         /* Equivalent to drive number 0=A 1=B ... */
 	_ino_t  st_ino;         /* Always zero ? */
-	_mode_t st_mode;        /* See above constants */
+	unsigned short st_mode; /* was _mode_t, gone from modern MinGW-w64 */
 	short   st_nlink;       /* Number of links. */
 	short   st_uid;         /* User: Maybe significant on NT ? */
 	short   st_gid;         /* Group: Ditto */

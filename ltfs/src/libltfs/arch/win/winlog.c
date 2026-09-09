@@ -164,7 +164,7 @@ void vsyslog(int priority, const char *format, va_list ap)
             NULL,       //User SID
             1,          //String Num
             0,          //DataSize
-            &msg,       //StringArray
+            (const CHAR **)&msg, //StringArray (cast: ReportEvent wants LPCSTR*)
             NULL);      //Data
     DeregisterEventSource(h);
 #endif
