@@ -6,7 +6,7 @@
 **
 ** CONTENTS:        Main body of ltotape LTFS backend
 **
-** (C) Copyright 2015 - 2017 Hewlett Packard Enterprise Development LP
+** (C) Copyright 2015 - 2020 Hewlett Packard Enterprise Development LP
 **
 ** This program is free software; you can redistribute it and/or modify it
 **  under the terms of version 2.1 of the GNU Lesser General Public License
@@ -1155,6 +1155,8 @@ int ltotape_ext_loadunload (void *device, struct tc_position *pos, bool load, bo
       /* media type comprises density code from the block descriptor + WORMM bit from mode data */
       mediatype = (int)buf[8] + ((int)(buf[18] & 0x01) << 8);
       switch (mediatype) {
+      case LTOMEDIATYPE_LTO9RW:    pMediaName = "LTO9RW";    status = 0;  break;
+      case LTOMEDIATYPE_LTO9WORM:  pMediaName = "LTO9WORM";  status = -1; break;
       case LTOMEDIATYPE_LTO8RW:    pMediaName = "LTO8RW";    status = 0;  break;
       case LTOMEDIATYPE_LTO8WORM:  pMediaName = "LTO8WORM";  status = -1; break;
       case LTOMEDIATYPE_LTO8TYPEM: pMediaName = "LTO8TYPEM"; status = 0;  break;
@@ -1606,7 +1608,7 @@ int ltotape_modeselect (void *device, unsigned char *buf, const size_t size)
   status = ltotape_scsiexec (sio);
 
   /* 01/3700 Mode select parameter is rounded by the drive (Should be ignored)*/
-  if (((sio->type == drive_lto7) || (sio->type == drive_lto8)) && (status == -EDEV_MODE_PARAMETER_ROUNDED)) {
+  if (((sio->type == drive_lto7) || (sio->type == drive_lto8) || (sio->type == drive_lto9)) && (status == -EDEV_MODE_PARAMETER_ROUNDED)) {
     status = 0;
 
   } else if (status == -EDEV_MODE_PARAMETER_ROUNDED) {
@@ -2149,16 +2151,22 @@ int ltotape_get_parameters (void *device, struct tc_drive_param *drive_param)
  * Since LTO7 and LTO8 drive can not write to LTO5RW media,
  * Set logical_write_protect to 1 if an LTO5RW tape inserted into an LTO7 or LTO8 drive
  * and logical_write_protect to 1 if an LTO6RW tape inserted into an LTO8 drive
+ * and logical_write_protect to 1 if an LTO7RW tape inserted into an LTO9 drive
  *
  * But note that this check is strictly only required for LTO5RW in LTO7; the other combos
  *  should be rejected by the drive itself.
  */
-  if ((drive_param->write_protect == false) && ((sio->type == drive_lto7) || (sio->type == drive_lto8))) {
+  if ((drive_param->write_protect == false) && ((sio->type == drive_lto7) || (sio->type == drive_lto8) || (sio->type == drive_lto9))) {
     status = ltotape_modesense (device, MODE_PAGE_MEDIUM_CONFIGURATION, TC_MP_PC_CURRENT, 0x00, buf, sizeof (buf));
     if (status == 0) {
       /* media type comprises density code from the block descriptor + WORMM bit from mode data */
       mediatype = (int)buf[8] + ((int)(buf[18] & 0x01) << 8);
       switch (mediatype) {
+      case LTOMEDIATYPE_LTO7RW:
+        if (sio->type == drive_lto9) {
+          drive_param->logical_write_protect = 1;
+        }
+        break;
       case LTOMEDIATYPE_LTO6RW:
         if (sio->type == drive_lto8) {
           drive_param->logical_write_protect = 1;
@@ -3087,12 +3095,12 @@ int ltotape_get_eod_status (void *device, int part)
    *  unable to check EOD status, which in the vast majority of cases will be irrelevant..
    *  So (for now at least) we'll report EOD_GOOD and hope it works out ok...
    *
-   * LTO7 and LTO8 drives do not support this log parameter but the firmware does support
+   * LTO7, LTO8 and LTO9 drives do not support this log parameter but the firmware does support
    *   the required features, so this initial check is not necessary and we can move on
    *   to the next part... 
    */
   drv = ((ltotape_scsi_io_type *)device)->type;
-  if ((drv != drive_lto7) && (drv != drive_lto8)) {
+  if ((drv != drive_lto7) && (drv != drive_lto8) && (drv != drive_lto9)) {
     if (parse_logPage (logdata, (uint16_t)VOLSTATS_VU_PGFMTVER, &param_size, buf, 2) == -1) {
       if (!done_report) {
         ltfsmsg (LTFS_DEBUG, "20097D");

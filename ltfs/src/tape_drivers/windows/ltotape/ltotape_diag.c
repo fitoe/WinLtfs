@@ -6,7 +6,7 @@
 **
 ** CONTENTS:        Diagnostic routines specifically for LTO drives
 **
-** (C) Copyright 2015 - 2018 Hewlett Packard Enterprise Development LP
+** (C) Copyright 2015 - 2020 Hewlett Packard Enterprise Development LP
 ** (c) Copyright 2010, 2011 Quantum Corporation
 **
 ** This program is free software; you can redistribute it and/or modify it
@@ -230,7 +230,7 @@ int ltotape_log_snapshot (void *device, int minidump)
  *  2. Read the drive dump (either full or mini)
  *  3. Release the ITL Nexus so that the snapshot mechanism is available to other ports - CR11435
  */
-	if ((sio->type == drive_lto7) || (sio->type == drive_lto8)) {
+	if ((sio->type == drive_lto7) || (sio->type == drive_lto8) || (sio->type == drive_lto9)) {
 		status = ltotape_snapshot_dump (device, (minidump)? DIAG_TRIGGER_MINIDUMP : DIAG_TRIGGER_DUMP);
 		if (status == -1) {
 			ltfsmsg (LTFS_WARN, "20077W", status);

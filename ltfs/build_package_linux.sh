@@ -111,7 +111,7 @@ function packaging_source() {
    cd $LTFS_CODE_DIRECTORY/build
    mkdir source_package
    cd source_package
-   svn export https://csvnsdc-pro.sdc.hpecorp.net:18490/svn/swd-hpltfs/trunk/ltfs ltfs
+   svn export https://penrice.uk.rdlabs.hpecorp.net:18490/svn/StoreOpen/trunk/ltfs ltfs
    cp ../../doc/COPYING.LIB .
    cp ../../doc/BUILDING.linux .
    cp ../../doc/BUILDING.macosx .

@@ -3,7 +3,7 @@
 LOG_FILE=/tmp/LTFS_postinstall.log
 
 FRAMEWORK_NAME=LTFS.framework
-VERSION=3.4.2
+VERSION=3.5.0
 
 echo "" >> ${LOG_FILE}
 echo "Starting post-install for ${FRAMEWORK_NAME} at `date`" >> ${LOG_FILE}

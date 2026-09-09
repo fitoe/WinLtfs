@@ -38,7 +38,7 @@
 dnl
 dnl LTFS configure.ac.
 dnl
-AC_INIT([LTFS],[3.4.2],[Hewlett Packard Enterprise Development LP])
+AC_INIT([LTFS],[3.5.0],[Hewlett Packard Enterprise Development LP])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_HOST

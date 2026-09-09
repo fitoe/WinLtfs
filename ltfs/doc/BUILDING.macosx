@@ -1,5 +1,5 @@
 =======================================================================
-HPE StoreOpen Software (HPE-SOS) - Version 3.4.2
+HPE StoreOpen Software (HPE-SOS) - Version 3.5.0
 =======================================================================
 
 Files in this download contain Licensed Materials, property of HPE,
@@ -35,7 +35,7 @@ Building HPE-SOS from source code (Mac OS X)
 
 3.	Run the LTFS build script:
 
-	$ cd hpe-sos_3.4.2
+	$ cd hpe-sos_3.5.0
 	$ ./build_osx_package.sh
 
 	If no errors are reported then the build was successful.
@@ -45,7 +45,7 @@ Building HPE-SOS from source code (Mac OS X)
 	performs the steps needed to build on the Mac OS X platform.
 
 4.	The build process produces an installable package in the directory
-	hpe-sos_3.4.2/distribution/
+	hpe-sos_3.5.0/distribution/
 
 	Open that directory in Finder and select the HPEStoreOpenSoftware.pkg
 

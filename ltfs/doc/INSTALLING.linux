@@ -1,5 +1,5 @@
 =======================================================================
-HPE StoreOpen Software (HPE-SOS) - Version 3.4.2
+HPE StoreOpen Software (HPE-SOS) - Version 3.5.0
 =======================================================================
 
 Files in this download contain Licensed Materials, property of HPE,
@@ -55,26 +55,26 @@ Installing on Linux systems
 4.	Download the file for your operating system platform:
 
 	(RHEL 6.x (x86 and x64) and RHEL 7.x (x64))
-	HPE-SOS_3.4.2_RHEL_x86_PKG.tar.gz	 (for x86 32-bit installations)
-	HPE-SOS_3.4.2_RHEL_x64_PKG.tar.gz	 (for x64 64-bit installations) 
+	HPE-SOS_3.5.0_RHEL_x86_PKG.tar.gz	 (for x86 32-bit installations)
+	HPE-SOS_3.5.0_RHEL_x64_PKG.tar.gz	 (for x64 64-bit installations) 
 	
 5.	Unzip the package to extract the binaries for supported architectures:
 	For example:
-	  tar -zxvf HPE-SOS_3.4.2_RHEL_x64_PKG.tar.gz
+	  tar -zxvf HPE-SOS_3.5.0_RHEL_x64_PKG.tar.gz
 	
 	This will unpack the following files in the current directory:
-		a. hpe-sos-3.4.2-71.x86_64.rpm
+		a. hpe-sos-3.5.0-71.x86_64.rpm
 		b. INSTALLING.linux
 		c. COPYING.LIB
 		d. README
 	
-6.	Install the hpe-sos-3.4.2-71.x86_64.rpm
+6.	Install the hpe-sos-3.5-71.x86_64.rpm
 	For example:
-	  rpm -ivh hpe-sos-3.4.2-71.x86_64.rpm
+	  rpm -ivh hpe-sos-3.5-71.x86_64.rpm
 	
         NOTE: If the dependencies are not yet installed, you can still install
         HPE SOS using the command 
-          rpm -ivh hpe-sos-3.4.2-71.x86_64.rpm --nodeps
+          rpm -ivh hpe-sos-3.5-71.x86_64.rpm --nodeps
 	        
 	The executables (ltfs, mkltfs, ltfsck, unltfs, ltfscopy) are placed in
 	/usr/local/bin/, a number of dynamic libraries in /usr/local/lib64/,

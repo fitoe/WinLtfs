@@ -142,7 +142,7 @@ struct device_data;
 #endif /* mingw_PLATFORM */
 #endif /* LTFS_DEFAULT_WORK_DIR */
 
-#define LTFS_BUILD_VERSION            9
+#define LTFS_BUILD_VERSION            12
 #define LTFS_MIN_CACHE_SIZE_DEFAULT   25 /* Default minimum cache size (MiB) */
 #define LTFS_MAX_CACHE_SIZE_DEFAULT   50 /* Default maximum cache size (MiB) */
 #define LTFS_SYNC_PERIOD_DEFAULT (5 * 60) /* default sync period (5 minutes) */
@@ -181,7 +181,7 @@ struct device_data;
 
 #ifdef __APPLE__
 #define PACKAGE_NAME                  "LTFS"
-#define PACKAGE_VERSION               "3.4.2"
+#define PACKAGE_VERSION               "3.5.0"
 #else
 #include "config.h"
 #endif

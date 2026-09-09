@@ -6,7 +6,7 @@
 **
 ** CONTENTS:        Definitions, typedefs etc for the ltotape LTFS backend
 **
-** (C) Copyright 2015 - 2017 Hewlett Packard Enterprise Development LP
+** (C) Copyright 2015 - 2020 Hewlett Packard Enterprise Development LP
 **
 ** This program is free software; you can redistribute it and/or modify it
 **  under the terms of version 2.1 of the GNU Lesser General Public License
@@ -71,6 +71,7 @@ typedef enum {
  */
 typedef enum {
    drive_unsupported,
+   drive_lto9,
    drive_lto8,
    drive_lto7,
    drive_lto6,
@@ -396,6 +397,8 @@ enum volstatvalues {
 /*
  * Tape medium type identifiers, comprised of the density code + WORM flag:
  */
+#define LTOMEDIATYPE_LTO9RW     0x0060
+#define LTOMEDIATYPE_LTO9WORM   0x0160
 #define LTOMEDIATYPE_LTO8RW     0x005E
 #define LTOMEDIATYPE_LTO8WORM   0x015E
 #define LTOMEDIATYPE_LTO8TYPEM  0x005D

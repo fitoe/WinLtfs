@@ -1,5 +1,5 @@
 =======================================================================
-HPE StoreOpen Software (HPE-SOS) - Version 3.4.2
+HPE StoreOpen Software (HPE-SOS) - Version 3.5.0
 =======================================================================
 
 Files in this download contain Licensed Materials, property of HPE,
@@ -26,7 +26,7 @@ Building HPE-SOS from source code
 	$ gunzip HPE-SOS_SOURCE.tar.gz
 	$ tar xf HPE-SOS_SOURCE.tar
 
-2.	Required Software packages - HPE StoreOpen Software 3.4.2 requires the
+2.	Required Software packages - HPE StoreOpen Software 3.5.0 requires the
         following software packages on Linux. Make sure that these packages
         are installed on the target computer.
    
@@ -54,7 +54,7 @@ Building HPE-SOS from source code
 	e2fsprogs package) and libxml2.
 
 3.	Run the configure script
-	$ cd hpe-sos_3.4.2
+	$ cd hpe-sos_3.5.0
 	$ ./configure
 
 	This will check for various dependencies; you must correct any problems

@@ -53,7 +53,7 @@
 ######################################################################################
 
 # LTFS version
-LTFS_VERSION = 3.4.2
+LTFS_VERSION = 3.5.0
 
 # Installation prefix
 PREFIX = /Library/Frameworks/LTFS.framework/Versions/Current/usr
