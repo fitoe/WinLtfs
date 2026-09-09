@@ -34,27 +34,35 @@ make_obj() {
 	${GENRB} -d work -q *.txt
 	cd work
 	ls *.res >packagelist.txt
-	${PKGDATA} -p ${BASENAME} -m static -q packagelist.txt >/dev/null
+
+	# Modern ICU pkgdata requires an options file (-O) for static/dll modes
+	PKGDATA_INC=${PKGDATA_INC:-/mingw64/lib/icu/current/pkgdata.inc}
+	if [ -f "$PKGDATA_INC" ]; then
+		PKGDATA_OPTS="-O $PKGDATA_INC"
+	else
+		PKGDATA_OPTS=
+	fi
 
 	case $KERNEL_NAME in
-		MINGW32_NT*)
-			# 
-			# HPE_mingw_BUILD
+		MINGW*_NT*|MSYS_NT*)
 			#
-			# We use dynamic libraries for the package data, so use the 
+			# HP_mingw_BUILD
+			#
+			# We use dynamic libraries for the package data, so use the
 			# -m dll switch
 			#
-			${PKGDATA} -p ${BASENAME} -m dll -q packagelist.txt >/dev/null
+			${PKGDATA} -p ${BASENAME} -m dll -q ${PKGDATA_OPTS} packagelist.txt >/dev/null
 			
-			# Copy the resulting DLL as both a link library
-			# (lib*.a) and the DLL with the package data
-			# (*.dll). Libtool will happily use the copy of 
-			# the DLL to link
+			# Modern ICU pkgdata emits a lib-prefixed DLL plus a real
+			# import library. Keep the DLL name pkgdata embedded in the
+			# import lib (lib${BASENAME}.dll) so the loader finds it.
 			#
-			cp ${BASENAME}.dll ../../lib${BASENAME}.a
-			cp ${BASENAME}.dll ../../${BASENAME}.dll
+			cp lib${BASENAME}.dll.a ../../lib${BASENAME}.a
+			cp lib${BASENAME}.dll ../../lib${BASENAME}.dll
+			cp ${BASENAME}_dat.o ../../${BASENAME}_dat.o
 			;;
 		*)
+			${PKGDATA} -p ${BASENAME} -m static -q ${PKGDATA_OPTS} packagelist.txt >/dev/null
 			mv ${BASENAME}_dat.o ../../
 			;;
 	esac

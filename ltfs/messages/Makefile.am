@@ -51,6 +51,13 @@
 ##
 ######################################################################################
 
+##
+## OSR/HP_mingw_BUILD
+##
+## Object file name must be changed from libltfs_dat to bin_libltfs_dat. This is 
+## part of changing the package name from libltfs to bin_libltfs to avoid collision 
+## with libltfs.dll, which is the name of the LTFS library code
+##
 RESOURCES = \
 	bin_mkltfs_dat.o \
 	bin_ltfsck_dat.o \
@@ -60,7 +67,7 @@ RESOURCES = \
 	driver_ltotape_dat.o \
 	iosched_fcfs_dat.o \
 	iosched_unified_dat.o \
-	libltfs_dat.o \
+	bin_libltfs_dat.o \
 	internal_error_dat.o
 
 .PHONY: all $(RESOURCES) clean-local
