@@ -782,6 +782,7 @@ int ltotape_locate(void *device, struct tc_position dest, struct tc_position *po
 {
   ltotape_scsi_io_type *sio = (ltotape_scsi_io_type*)device;
   int                   status = 0;
+  bool                  locate_special = false;
 
   ltfsmsg(LTFS_DEBUG, "20057D", "locate", (unsigned long long)dest.partition, (unsigned long long)dest.block);
 
@@ -845,10 +846,12 @@ int ltotape_locate(void *device, struct tc_position dest, struct tc_position *po
      if ((dest.block == TAPE_BLOCK_MAX) && (SENSE_IS_BLANK_CHECK_EOD(sio->sensedata))) {
         ltfsmsg(LTFS_DEBUG, "20063D");
         status = 0;
+        locate_special = true;
 
      } else if ((dest.block == 0) && (SENSE_IS_BLANK_CHECK_NOEOD(sio->sensedata))) {
         ltfsmsg(LTFS_DEBUG, "20021D");
         status = 0;
+        locate_special = true;
                          
      } else {
         ltfsmsg(LTFS_ERR, "20064E", status);
@@ -857,6 +860,23 @@ int ltotape_locate(void *device, struct tc_position dest, struct tc_position *po
   }
 
   ltotape_readposition (device, pos);
+
+  /*
+   * Guard against a silent mis-locate: a drive recovering from a transient
+   * not-ready condition can report SCSI success yet leave the head at the wrong
+   * position, and a following write would then overwrite an unrelated region of
+   * the medium (this is how an index partition's labels were once destroyed).
+   * Confirm the post-locate position actually matches the request and fail the
+   * locate otherwise, so libltfs never writes at an unverified position. The
+   * blank-check EOD and virgin-media cases handled above legitimately land
+   * elsewhere, so they are exempt.
+   */
+  if (status == 0 && !locate_special &&
+      (pos->partition != dest.partition || pos->block != dest.block)) {
+     ltfsmsg(LTFS_ERR, "20064E", -1);
+     ltotape_log_snapshot (device, FALSE);
+     status = -1;
+  }
 
   return status;
 }
