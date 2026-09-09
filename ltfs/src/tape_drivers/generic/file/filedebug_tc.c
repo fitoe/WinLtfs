@@ -74,6 +74,7 @@
 #include "libltfs/ltfslogging.h"
 #include "libltfs/ltfs_endian.h"
 #include "libltfs/tape_ops.h"
+#include "libltfs/ltfs.h"        /* mam_lockval, used by the tape_ops signatures */
 #include "libltfs/ltfs_error.h"
 
 volatile char *copyright = LTFS_COPYRIGHT_0"\n"LTFS_COPYRIGHT_1"\n"LTFS_COPYRIGHT_2"\n" \
@@ -152,6 +153,8 @@ int _filedebug_space_fm(struct filedebug_data *state, uint64_t count, bool back)
 int _filedebug_space_rec(struct filedebug_data *state, uint64_t count, bool back);
 int _get_wp(struct filedebug_data *state, uint64_t *wp);
 int _set_wp(struct filedebug_data *state, uint64_t wp);
+int filedebug_update_mam_attr(void *device, TC_FORMAT_TYPE format,
+	const char *vol_name, unsigned int attribute_id, const char *barcode_name, mam_lockval lockbit);
 
 /* Command-line options recognized by this module */
 #define FILEDEBUG_OPT(templ,offset,value) { templ, offsetof(struct filedebug_data, offset), value }
@@ -184,7 +187,7 @@ int filedebug_parse_opts(void *vstate, void *opt_args)
 	return 0;
 }
 
-void filedebug_help_message(void)
+void filedebug_help_message(const char *progname)
 {
 	ltfsresult("12272I", filedebug_default_device);
 }
@@ -975,7 +978,7 @@ int filedebug_setcap(void *vstate, uint16_t proportion)
 	return DEVICE_GOOD;
 }
 
-int filedebug_format(void *vstate, TC_FORMAT_TYPE format)
+int filedebug_format(void *vstate, TC_FORMAT_TYPE format, const char *vol_name, const char *barcode_name, const char *vol_mam_uuid)
 {
 	struct filedebug_data *state = (struct filedebug_data *)vstate;
 	struct tc_position pos;
@@ -1740,7 +1743,16 @@ int filedebug_get_worm_status(void *device, bool *is_worm)
 	return DEVICE_GOOD;
 }
 
+/* LTFS 2.4/3.4.2 added a combined load/unload op; delegate to the existing
+ * load/unload paths (the file emulator ignores the "hold" flag). */
+int filedebug_loadunload(void *device, struct tc_position *pos, bool load, bool hold)
+{
+	(void)hold;
+	return load ? filedebug_load(device, pos) : filedebug_unload(device, pos);
+}
+
 struct tape_ops filedebug_handler = {
+	.loadunload             = filedebug_loadunload,
 	.open                   = filedebug_open,
 	.reopen                 = filedebug_reopen,
 	.close                  = filedebug_close,
@@ -1791,23 +1803,28 @@ struct tape_ops filedebug_handler = {
 	.takedump_drive         = filedebug_takedump_drive,
 	.is_mountable           = filedebug_is_mountable,
 	.get_worm_status        = filedebug_get_worm_status,
+	.update_mam_attr        = filedebug_update_mam_attr,
 };
+
+int filedebug_update_mam_attr(void *device, TC_FORMAT_TYPE format,
+	const char *vol_name, unsigned int attribute_id, const char *barcode_name, mam_lockval lockbit)
+{
+	/* MAM (cartridge memory) attributes don't exist in the file emulator;
+	 * succeed as a no-op so format/mount flows continue. */
+	return DEVICE_GOOD;
+}
 
 struct tape_ops *tape_dev_get_ops(void)
 {
 	return &filedebug_handler;
 }
 
-#ifndef mingw_PLATFORM
 extern char driver_generic_file_dat[];
-#endif
 
 const char *tape_dev_get_message_bundle_name(void **message_data)
 {
-#ifndef mingw_PLATFORM
+	/* The message bundle is built on Windows too now (build.sh filedebug);
+	 * the old mingw_PLATFORM NULL path made plugin load fail outright. */
 	*message_data = driver_generic_file_dat;
-#else
-	*message_data = NULL;
-#endif
 	return "driver_generic_file";
 }
