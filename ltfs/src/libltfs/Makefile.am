@@ -37,6 +37,12 @@ lib_LTLIBRARIES = libltfs.la
 noinst_HEADERS =
 nobase_pkginclude_HEADERS = ltfs.h tape_ops.h ltfs_types.h ltfslogging.h ltfstrace.h ltfs_thread.h ltfs_locking.h queue.h plugin.h config_file.h ltfs_error.h
 
+#
+# OSR/HP_mingw_BUILD
+# 
+# We include the Windows architecture files to go into this library instead of
+# creating yet another library
+#
 libltfs_la_SOURCES = \
 	ltfs.c \
 	ltfs_internal.c \
@@ -65,20 +71,19 @@ libltfs_la_SOURCES = \
 	arch/uuid_internal.c \
 	arch/filename_handling.c \
 	arch/time_internal.c \
+	arch/win/win_util.c \
+	arch/win/winlog.c \
 	arch/arch_info.c \
 	arch/errormap.c
-
-libltfs_la_DEPENDENCIES = ../../messages/libltfs_dat.o ../../messages/internal_error_dat.o
-libltfs_la_LIBADD = ../../messages/libltfs_dat.o ../../messages/internal_error_dat.o
+	
+#
+# Note the change in the libltfs package data binary (bin_libltfs).
+# 
+libltfs_la_DEPENDENCIES = ../../messages/libbin_libltfs.a ../../messages/libinternal_error.a
+#
+# Package data must be linked as a library (-lbin_libltfs)
+#
+libltfs_la_LIBADD = -L../../messages -lbin_libltfs -linternal_error -lole32 -lpthread -lxml2 -lrpcrt4 -loleaut32 -licuuc -lws2_32
 libltfs_la_CPPFLAGS = @AM_CPPFLAGS@ -I ..
-libltfs_la_LDFLAGS = @AM_LDFLAGS@
+libltfs_la_LDFLAGS = @AM_LDFLAGS@ -avoid-version -no-undefined
 
-install-data-local:
-	if [ ! -d "$(prefix)/share/snmp" ]; then \
-		mkdir -p "$(prefix)/share/snmp"; \
-		cp LtfsSnmpTrapDef.txt LTFS-MIB.txt "$(prefix)/share/snmp/"; \
-	elif [ ! -f "$(prefix)/share/snmp/LtfsSnmpTrapDef.txt" ]; then \
-		cp LtfsSnmpTrapDef.txt "$(prefix)/share/snmp/LtfsSnmpTrapDef.txt"; \
-	elif [ ! -f "$(prefix)/share/snmp/LTFS-MIB.txt" ]; then \
-		cp LTFS-MIB.txt "$(prefix)/share/snmp/LTFS-MIB.txt"; \
-	fi

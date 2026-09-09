@@ -44,11 +44,13 @@ AC_CONFIG_AUX_DIR([build-aux])
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AM_INIT_AUTOMAKE([-Wall foreign])
 AC_PROG_CC
 AC_USE_SYSTEM_EXTENSIONS
 AC_PROG_CC_C99
+AM_PROG_AR
 AC_PROG_LIBTOOL
+LT_PROG_RC
 
 dnl
 dnl Check for debug
@@ -208,7 +210,7 @@ then
 	OPT_FLAGS="-O2 -g -fno-strict-aliasing"
 else
 	OPT_FLAGS="-O0 -ggdb"
-	AM_CFLAGS="${AM_CFLAGS} -fkeep-inline-functions -rdynamic"
+	AM_CFLAGS="${AM_CFLAGS} -fkeep-inline-functions"
 	if test "x$use_debug" = "xyes"
 	then
 		AM_CPPFLAGS="${AM_CPPFLAGS} -DDEBUG -DTRACE"
@@ -287,7 +289,7 @@ AC_CONFIG_FILES([
     init.d/Makefile
     src/Makefile
     src/libltfs/Makefile
-    src/tape_drivers/linux/ltotape/Makefile
+    src/tape_drivers/windows/ltotape/Makefile
     src/iosched/Makefile
     src/kmi/Makefile
     src/utils/Makefile

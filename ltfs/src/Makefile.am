@@ -40,13 +40,22 @@
 
 bin_PROGRAMS = ltfs
 
-ltfs_SOURCES = main.c ltfs_fuse.c
-ltfs_DEPENDENCIES = libltfs/libltfs.la ../messages/bin_ltfs_dat.o
-ltfs_CPPFLAGS = @AM_CPPFLAGS@ -I ../ltfs-sde/src
-ltfs_LDADD = libltfs/libltfs.la ../messages/bin_ltfs_dat.o
+#
+# RC file linked to provides message data for the Event Log
+#
+ltfs_SOURCES = main.c ltfs_fuse.c ltfs_msgs.rc
+ltfs_DEPENDENCIES = ../src/libltfs/libltfs.la ../messages/libbin_ltfs.a
+ltfs_LDADD = ../src/libltfs/libltfs.la -L../messages -lbin_ltfs -lbin_libltfs
 
-# platform_drivers = tape_drivers/linux/ibmtape
-# generic_drivers = tape_drivers/generic/file tape_drivers/generic/itdtimg
-# SUBDIRS = $(generic_drivers) $(platform_drivers) iosched kmi libltfs utils
-platform_drivers = tape_drivers/linux/ltotape
-SUBDIRS = $(platform_drivers) iosched kmi libltfs utils
+#
+# Provide support for building the RC file with the Resource Compiler (RC/windres)
+#
+.rc.o: 
+	$(RC) -o $@ $<
+	
+# 
+# Platform driver is the Windows driver
+#
+platform_drivers = tape_drivers/windows/ltotape
+
+SUBDIRS = libltfs kmi . iosched utils $(platform_drivers) 

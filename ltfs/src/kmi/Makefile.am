@@ -38,15 +38,15 @@ libdir = @libdir@/ltfs
 AM_LIBTOOLFLAGS = --tag=disable-static
 
 libkmi_simple_la_SOURCES = simple.c key_format_ltfs.c
-libkmi_simple_la_LDFLAGS = -avoid-version -module @AM_LDFLAGS@
-libkmi_simple_la_DEPENDENCIES = ../../messages/kmi_simple_dat.o
-libkmi_simple_la_LIBADD = ../../messages/kmi_simple_dat.o
+libkmi_simple_la_LDFLAGS = -avoid-version -no-undefined @AM_LDFLAGS@
+libkmi_simple_la_DEPENDENCIES = ../../messages/libkmi_simple.a
+libkmi_simple_la_LIBADD = -L../../messages -lkmi_simple  ../libltfs/libltfs.la
 libkmi_simple_la_CPPFLAGS = @AM_CPPFLAGS@ -I ..
 
 libkmi_flatfile_la_SOURCES = flatfile.c key_format_ltfs.c
-libkmi_flatfile_la_LDFLAGS = -avoid-version -module @AM_LDFLAGS@
-libkmi_flatfile_la_DEPENDENCIES = ../../messages/kmi_flatfile_dat.o
-libkmi_flatfile_la_LIBADD = ../../messages/kmi_flatfile_dat.o
+libkmi_flatfile_la_LDFLAGS = -avoid-version -no-undefined @AM_LDFLAGS@
+libkmi_flatfile_la_DEPENDENCIES = ../../messages/libkmi_flatfile.a
+libkmi_flatfile_la_LIBADD = -L../../messages -lkmi_flatfile  ../libltfs/libltfs.la
 libkmi_flatfile_la_CPPFLAGS = @AM_CPPFLAGS@ -I ..
 
 install-exec-hook:

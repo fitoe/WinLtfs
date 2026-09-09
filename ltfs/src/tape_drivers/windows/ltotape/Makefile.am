@@ -30,7 +30,7 @@ AM_LIBTOOLFLAGS = --tag=disable-static
 
 libdriver_ltotape_win_la_SOURCES = ltotape.c  ltotape_diag.c  ltotape_platform.c
 libdriver_ltotape_win_la_DEPENDENCIES = $(top_srcdir)/messages/libdriver_ltotape.a
-libdriver_ltotape_win_la_LIBADD = -L$(abs_top_srcdir)/messages -ldriver_ltotape ../../../libltfs/libltfs.la -lfuse4win
+libdriver_ltotape_win_la_LIBADD = -L$(abs_top_srcdir)/messages -ldriver_ltotape ../../../libltfs/libltfs.la $(FUSE_MODULE_LIBS)
 libdriver_ltotape_win_la_CPPFLAGS = -I$(top_srcdir)/src @AM_CPPFLAGS@
 libdriver_ltotape_win_la_LDFLAGS = -avoid-version -no-undefined
 

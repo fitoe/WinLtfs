@@ -38,15 +38,15 @@ libdir = @libdir@/ltfs
 AM_LIBTOOLFLAGS = --tag=disable-static
 
 libiosched_fcfs_la_SOURCES = fcfs.c
-libiosched_fcfs_la_LDFLAGS = -avoid-version -module @AM_LDFLAGS@
-libiosched_fcfs_la_DEPENDENCIES = ../../messages/iosched_fcfs_dat.o
-libiosched_fcfs_la_LIBADD = ../../messages/iosched_fcfs_dat.o
-libiosched_fcfs_la_CPPFLAGS = @AM_CPPFLAGS@ -I ..
+libiosched_fcfs_la_LDFLAGS = -avoid-version -no-undefined @AM_LDFLAGS@
+libiosched_fcfs_la_DEPENDENCIES = ../../messages/libiosched_fcfs.a
+libiosched_fcfs_la_LIBADD = -L../../messages -liosched_fcfs  ../libltfs/libltfs.la
+libiosched_fcfs_la_CPPFLAGS = @AM_CPPFLAGS@ -I../src
 
 libiosched_unified_la_SOURCES = unified.c cache_manager.c
-libiosched_unified_la_LDFLAGS = -avoid-version -module @AM_LDFLAGS@
-libiosched_unified_la_DEPENDENCIES = ../../messages/iosched_unified_dat.o
-libiosched_unified_la_LIBADD = ../../messages/iosched_unified_dat.o
+libiosched_unified_la_LDFLAGS = -avoid-version -no-undefined @AM_LDFLAGS@
+libiosched_unified_la_DEPENDENCIES = ../../messages/libiosched_unified.a
+libiosched_unified_la_LIBADD = -L../../messages -liosched_unified  ../libltfs/libltfs.la
 libiosched_unified_la_CPPFLAGS = @AM_CPPFLAGS@ -I ..
 
 install-exec-hook:
