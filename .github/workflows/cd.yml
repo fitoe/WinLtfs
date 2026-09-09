@@ -1,0 +1,111 @@
+name: cd
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and publish release
+    runs-on: windows-latest
+
+    env:
+      WINFSP_MSI_URL: https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi
+      WINFSP_MSI_SHA256: 073A70E00F77423E34BED98B86E600DEF93393BA5822204FAC57A29324DB9F7A
+
+    steps:
+      - name: Validate version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "Tag must look like v1.0.0 or v1.0.0.0. Got '$tag'."
+          }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+
+      - name: Configure Git line endings
+        shell: pwsh
+        run: git config --global core.autocrlf input
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            autoconf
+            automake
+            libtool
+            make
+            pkgconf
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-icu
+            mingw-w64-x86_64-pkgconf
+
+      - name: Extract WinFsp developer files
+        shell: pwsh
+        run: |
+          $msi = Join-Path $env:RUNNER_TEMP 'winfsp.msi'
+          Invoke-WebRequest -Uri $env:WINFSP_MSI_URL -OutFile $msi
+          $actual = (Get-FileHash $msi -Algorithm SHA256).Hash
+          if ($actual -ne $env:WINFSP_MSI_SHA256) {
+            throw "WinFsp MSI SHA256 mismatch: got $actual, expected $env:WINFSP_MSI_SHA256"
+          }
+
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'winfsp'
+          New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+          $msiArgs = @('/a', "`"$msi`"", "TARGETDIR=`"$extractRoot`"", '/qn', '/norestart')
+          $process = Start-Process msiexec.exe -Wait -PassThru -ArgumentList $msiArgs
+          if ($process.ExitCode -ne 0) {
+            throw "WinFsp MSI extraction failed with exit code $($process.ExitCode)."
+          }
+
+          $winfspRoot = Join-Path $extractRoot 'DYNAMIC'
+          $lib = Join-Path $winfspRoot 'lib\winfsp-x64.lib'
+          $dll = Join-Path $winfspRoot 'SxS\DYNAMIC\bin\winfsp-x64.dll'
+          if (-not (Test-Path $lib)) { throw "WinFsp MSI extraction did not produce '$lib'." }
+          if (-not (Test-Path $dll)) { throw "WinFsp MSI extraction did not produce '$dll'." }
+          New-Item -ItemType Directory -Force -Path (Join-Path $winfspRoot 'bin') | Out-Null
+          Copy-Item $dll (Join-Path $winfspRoot 'bin\winfsp-x64.dll') -Force
+          "WINFSP=$winfspRoot" >> $env:GITHUB_ENV
+
+      - name: Build + stage dist
+        shell: msys2 {0}
+        run: |
+          # WINFSP arrives as a Windows path from the previous step; setup.sh
+          # uses it with cp, so convert it to an MSYS path first.
+          export WINFSP="$(cygpath -u "$WINFSP")"
+          ./setup.sh
+          ./build.sh all
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $zip = "WinLtfs-v$env:RELEASE_VERSION.zip"
+          Compress-Archive -Path dist\* -DestinationPath $zip -Force
+          "path=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:RELEASE_TAG "${{ steps.package.outputs.path }}" `
+            --target "${{ github.sha }}" `
+            --title "v$env:RELEASE_VERSION" `
+            --notes "" `
+            --latest

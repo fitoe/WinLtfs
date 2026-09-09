@@ -1,0 +1,2 @@
+# Build scripts must stay LF for MSYS2 bash regardless of the cloning git.
+*.sh text eol=lf
