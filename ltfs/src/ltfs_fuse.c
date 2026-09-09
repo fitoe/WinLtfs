@@ -258,9 +258,19 @@ const char *_dentry_name(const char *path, struct file_info *fi)
 		return "(unnamed)";
 }
 
-static void _ltfs_fuse_attr_to_stat(struct stat *stbuf, struct dentry_attr *attr,
+static void _ltfs_fuse_attr_to_stat(struct fuse_stat *stbuf, struct dentry_attr *attr,
 	struct ltfs_fuse_data *priv)
 {
+	memset(stbuf, 0, sizeof(*stbuf));
+#if defined(_WIN32) && defined(FSP_FUSE_USE_STAT_EX)
+	/* Report tape files with the Archive attribute (visual identity for
+	 * archival media; also mirrors the read-only flag as an attribute). */
+	if (! attr->isdir) {
+		stbuf->st_flags = UF_ARCHIVE;
+		if (attr->readonly)
+			stbuf->st_flags |= UF_READONLY;
+	}
+#endif
 	stbuf->st_dev = LTFS_SUPER_MAGIC;
 	stbuf->st_ino = attr->uid;
 	if (attr->isslink) {
@@ -292,13 +302,23 @@ static void _ltfs_fuse_attr_to_stat(struct stat *stbuf, struct dentry_attr *attr
 	stbuf->st_ctimespec = timespec_from_ltfs_timespec(&attr->change_time);
 	stbuf->st_birthtimespec = timespec_from_ltfs_timespec(&attr->create_time);
 #else
-	stbuf->st_atim = timespec_from_ltfs_timespec(&attr->access_time);
-	stbuf->st_mtim = timespec_from_ltfs_timespec(&attr->modify_time);
-	stbuf->st_ctim = timespec_from_ltfs_timespec(&attr->change_time);
+	/* Field-wise conversion: WinFsp's fuse_timespec has a 64-bit tv_nsec,
+	 * the platform timespec may not — the layouts are not cast-compatible. */
+	stbuf->st_atim.tv_sec  = attr->access_time.tv_sec;
+	stbuf->st_atim.tv_nsec = attr->access_time.tv_nsec;
+	stbuf->st_mtim.tv_sec  = attr->modify_time.tv_sec;
+	stbuf->st_mtim.tv_nsec = attr->modify_time.tv_nsec;
+	stbuf->st_ctim.tv_sec  = attr->change_time.tv_sec;
+	stbuf->st_ctim.tv_nsec = attr->change_time.tv_nsec;
+#if defined(_WIN32)
+	/* WinFsp reports st_birthtim as the Windows creation time */
+	stbuf->st_birthtim.tv_sec  = attr->create_time.tv_sec;
+	stbuf->st_birthtim.tv_nsec = attr->create_time.tv_nsec;
+#endif
 #endif
 }
 
-int ltfs_fuse_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
+int ltfs_fuse_fgetattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file = FILEHANDLE_TO_STRUCT(fi->fh);
@@ -324,7 +344,7 @@ int ltfs_fuse_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_in
 	return errormap_fuse_error(ret);
 }
 
-int ltfs_fuse_getattr(const char *path, struct stat *stbuf)
+int ltfs_fuse_getattr(const char *path, struct fuse_stat *stbuf)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct dentry_attr attr;
@@ -359,7 +379,7 @@ int ltfs_fuse_access(const char *path, int mode)
 	return 0;
 }
 
-int ltfs_fuse_statfs(const char *path, struct statvfs *buf)
+int ltfs_fuse_statfs(const char *path, struct fuse_statvfs *buf)
 {
 	/*
 	 * OSR
@@ -369,7 +389,7 @@ int ltfs_fuse_statfs(const char *path, struct statvfs *buf)
 #if !defined(mingw_PLATFORM) || defined(HPE_mingw_BUILD)
 	int ret = 0;
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
-	struct statvfs *stats = &priv->fs_stats;
+	struct fuse_statvfs *stats = &priv->fs_stats;
 	struct device_capacity blockstat;
 
 #if 0
@@ -392,7 +412,7 @@ int ltfs_fuse_statfs(const char *path, struct statvfs *buf)
 	stats->f_files = ltfs_get_file_count(priv->data);
 
 	stats->f_ffree = UINT32_MAX - stats->f_files;   /* Assuming file count fits in 32 bits. */
-	memcpy(buf, stats, sizeof(struct statvfs));
+	*buf = *stats;
 
 #ifdef __APPLE__
 	/* With MacFUSE, we use an f_frsize not equal to the file system block size.
@@ -703,7 +723,7 @@ int ltfs_fuse_flush(const char *path, struct fuse_file_info *fi)
 	return errormap_fuse_error(ret);
 }
 
-int ltfs_fuse_utimens(const char *path, const struct timespec ts[2])
+int ltfs_fuse_utimens(const char *path, const struct fuse_timespec ts[2])
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_timespec tsTmp[2];
@@ -714,8 +734,11 @@ int ltfs_fuse_utimens(const char *path, const struct timespec ts[2])
 	ltfs_request_trace(FUSE_REQ_ENTER(REQ_UTIMENS), 0, 0);
 #endif /* 0 */
 
-	tsTmp[0] = ltfs_timespec_from_timespec(&ts[0]);
-	tsTmp[1] = ltfs_timespec_from_timespec(&ts[1]);
+	/* ts may be WinFsp's fuse_timespec (64-bit tv_nsec); convert field-wise. */
+	tsTmp[0].tv_sec  = ts[0].tv_sec;
+	tsTmp[0].tv_nsec = (long)ts[0].tv_nsec;
+	tsTmp[1].tv_sec  = ts[1].tv_sec;
+	tsTmp[1].tv_nsec = (long)ts[1].tv_nsec;
 
 #ifdef HPE_mingw_BUILD
 	if (tsTmp[0].tv_sec == 0 && tsTmp[0].tv_nsec == 0
@@ -739,7 +762,7 @@ int ltfs_fuse_utimens(const char *path, const struct timespec ts[2])
  * Change the mode of a file or directory. Since LTFS does not support full Unix permissions,
  * this function just sets or clears the read-only flag.
  */
-int ltfs_fuse_chmod(const char *path, mode_t mode)
+int ltfs_fuse_chmod(const char *path, fuse_mode_t mode)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	ltfs_file_id id;
@@ -764,7 +787,7 @@ int ltfs_fuse_chmod(const char *path, mode_t mode)
  * Set ownership of a file or directory. Succeeds, but has no effect: user/group are
  * controlled by mount-time options uid and gid.
  */
-int ltfs_fuse_chown(const char *path, uid_t user, gid_t group)
+int ltfs_fuse_chown(const char *path, fuse_uid_t user, fuse_gid_t group)
 {
 #if 0
 	ltfs_request_trace(FUSE_REQ_ENTER(REQ_CHOWN), ((uint64_t)user << 32) + group, 0);
@@ -773,7 +796,7 @@ int ltfs_fuse_chown(const char *path, uid_t user, gid_t group)
 	return 0;
 }
 
-int ltfs_fuse_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+int ltfs_fuse_create(const char *path, fuse_mode_t mode, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file;
@@ -856,7 +879,7 @@ int ltfs_fuse_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	return errormap_fuse_error(0);
 }
 
-int ltfs_fuse_mkdir(const char *path, mode_t mode)
+int ltfs_fuse_mkdir(const char *path, fuse_mode_t mode)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	void *dentry_handle;
@@ -884,7 +907,7 @@ int ltfs_fuse_mkdir(const char *path, mode_t mode)
 	return errormap_fuse_error(ret);
 }
 
-int ltfs_fuse_truncate(const char *path, off_t length)
+int ltfs_fuse_truncate(const char *path, fuse_off_t length)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	ltfs_file_id id;
@@ -905,7 +928,7 @@ int ltfs_fuse_truncate(const char *path, off_t length)
 	return errormap_fuse_error(ret);
 }
 
-int ltfs_fuse_ftruncate(const char *path, off_t length, struct fuse_file_info *fi)
+int ltfs_fuse_ftruncate(const char *path, fuse_off_t length, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file = FILEHANDLE_TO_STRUCT(fi->fh);
@@ -1027,7 +1050,7 @@ int _ltfs_fuse_filldir(void *buf, const char *name, void *priv)
 }
 
 int ltfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-	off_t offset, struct fuse_file_info *fi)
+	fuse_off_t offset, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file = FILEHANDLE_TO_STRUCT(fi->fh);
@@ -1061,7 +1084,7 @@ int ltfs_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	return errormap_fuse_error(ret);
 }
 
-int ltfs_fuse_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+int ltfs_fuse_write(const char *path, const char *buf, size_t size, fuse_off_t offset, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file = FILEHANDLE_TO_STRUCT(fi->fh);
@@ -1102,7 +1125,7 @@ int ltfs_fuse_write(const char *path, const char *buf, size_t size, off_t offset
 	}
 }
 
-int ltfs_fuse_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+int ltfs_fuse_read(const char *path, char *buf, size_t size, fuse_off_t offset, struct fuse_file_info *fi)
 {
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
 	struct ltfs_file_handle *file = FILEHANDLE_TO_STRUCT(fi->fh);
@@ -1267,7 +1290,7 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 {
 	int						ret = 0;
 	struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
-	struct statvfs *stats = &priv->fs_stats;
+	struct fuse_statvfs *stats = &priv->fs_stats;
 #ifdef HPE_mingw_BUILD
 	int						iter = 0;
 	char					*index_rules_utf8 = NULL;
@@ -1277,6 +1300,12 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 	ltfs_request_trace(FUSE_REQ_ENTER(REQ_MOUNT), 0, 0);
 #endif /* 0 */
 
+#if defined(FSP_FUSE_CAP_STAT_EX)
+	/* WinFsp: negotiate the extended stat so st_flags (Windows file
+	 * attributes such as Archive) reach the filesystem layer. */
+	conn->want |= conn->capable & FSP_FUSE_CAP_STAT_EX;
+#endif
+
 #ifdef HPE_mingw_BUILD
 
 	/* Allocate the LTFS volume structure */
@@ -1284,7 +1313,7 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 		if (ltfs_volume_alloc("ltfs", &priv->data) < 0) {
 			/* Could not allocate LTFS volume structure */
 			ltfsmsg(LTFS_ERR, "14011E");
-			return 1;
+			return (void *)1;
 		}
 		ltfs_use_atime(priv->atime, priv->data);
 	}
@@ -1757,7 +1786,9 @@ struct fuse_operations ltfs_ops = {
 	.removexattr = ltfs_fuse_removexattr,
 	.symlink     = ltfs_fuse_symlink,
 	.readlink    = ltfs_fuse_readlink,
-#if FUSE_VERSION >= 28
+#if FUSE_VERSION >= 28 && !defined(FSP_FUSE_API)
+	/* WinFsp's fuse_operations has no flag bitfields (it reports 2.8 but
+	 * ignores nullpath_ok; its FUSE layer never passes NULL paths). */
 	.flag_nullpath_ok = 1,
 #endif
 };
