@@ -58,7 +58,7 @@
 /*
  * Include Non-standard FUSE APIs for device communication
  */
-#include <FUSE4Win_nonstd.h>
+#include "winfsp_compat.h" /* was: FUSE4Win_nonstd.h — see PORTING_PLAN.md */
 
 
 /*
