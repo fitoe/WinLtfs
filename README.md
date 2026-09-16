@@ -28,6 +28,29 @@ Mount, Format, and Test LTFS tapes on Windows with [WinFsp](https://winfsp.dev).
 - Windows 7 / Server 2008 R2 through to Windows 10, 11 and the latest Windows Server (64-bit only)
 - An LTO-5 or newer cartridge with a compatible LTO Tape Drive
 
+## Supported Tape Drives
+
+| Brand    | LTO-5 | LTO-6 | LTO-7 | LTO-8 | LTO-9 |
+| -------- | :---: | :---: | :---: | :---: | :---: |
+| HP / HPE |  ✅   |  ✅   |  ✅   |  ✅   |  ✅   |
+| Quantum  |  ✅   |  ✅   |  ✅   |  ✅   |  ✅   |
+| Tandberg |  ✅   |  ✅   |  ❓   |  ❓   |  ❓   |
+| IBM      |  ❌   |  ❌   |  ❌   |  ❌   |  ❌   |
+
+- ✅: Supported, either whitelisted or has been tested.
+- ❓: Uncertain as it needs to be tested to be sure.
+- ❌: Not supported as it uses a different tape backend.
+
+Support is matched on the tape drive's SCSI INQUIRY product ID, so any LTO Tape Drive that
+reports one of the recognized names should work regardless of brand. The recognized forms are
+HP/HPE's `Ultrium N-SCSI`, Quantum's `ULTRIUM N`, and Tandberg's `LTO-N HH` (where `N` is the
+LTO generation). You can view your tape drive's reported product ID in Device Manager (its
+Properties → Details → *Hardware Ids*) or with any SCSI inquiry tool.
+
+If your LTO Tape Drive is missing from the table, listed incorrectly, or you have tested one
+of the uncertain entries, please [open an issue](https://github.com/rlaphoenix/winltfs/issues)
+so the list can be updated.
+
 ## Background
 
 WinLtfs is a patch of [HPE StoreOpen's LGPL-licensed source code](https://github.com/rlaphoenix/winltfs/blob/hpe/COPYING.LIB), swapping out broken features and code for working modern replacements.
