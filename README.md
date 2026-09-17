@@ -72,16 +72,8 @@ Thus this project was born, allowing you to continue the use of your LTO Tape Dr
 
 HPE's LTT (Library & Tape Tools) is still recommended. The following features from HPE StoreOpen are not yet implemented:
 
-- The 'Drive' field of the mapping/mounting configuration (while unclear, this was
-  probably a field to change the name/label of the mounted virtual drive)
 - 'Offline' mode for mounted files to disable thumbnails for better performance
   (as WinFsp does not seem to support it)
-- Requesting mount-time override of formatted configuration (might be possible,
-  havent investigated)
-- Allowing files to be placed in index partition given a specific file size and/or
-  file name (might be possible, havent investigated)
-- Append Only Mode which may or may not be supported by all drives (might be possible,
-  havent investigated)
 - Possibly missing obscure features I don't know about that are not advertised
   in the HPE StoreOpen GUIs...
 
