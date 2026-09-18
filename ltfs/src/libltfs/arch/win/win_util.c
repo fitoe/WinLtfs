@@ -60,6 +60,7 @@
 #include <windows.h>
 #include <objbase.h>
 #include <cguid.h>
+#include <shlobj.h>
 
 #ifdef HPE_mingw_BUILD
 #include <stddef.h>
@@ -440,4 +441,130 @@ char *strndup(const char *src, size_t size)
 
 	/* Use the standard strdup for sizes equal to or greater than the size of the 'src' string. */
 	return strdup(src);
+}
+
+/*
+ * Explorer drive presentation (DriveIcons registry override) -----------------
+ *
+ * The WinFsp volume label is fixed at mount from -o volname and cannot follow
+ * cartridge swaps. HPE StoreOpen hit the same wall and solved it (in
+ * FUSE4Win.dll) by overriding the drive letter's label and icon through the
+ * registry DriveIcons key and refreshing Explorer with SHChangeNotify. We do the
+ * same, so Explorer shows the live cartridge under the persistent drive letter.
+ */
+
+/* Per-state icon files, shipped in the drive-icons/ folder next to ltfs.exe (as
+ * staged by build.sh). A state whose icon file is absent simply gets no
+ * DefaultIcon (Explorer shows the generic drive icon), so the icons are optional. */
+static const char *drive_state_icon(enum drive_state s)
+{
+	switch (s) {
+	case DPRES_MOUNTED:      return "drive-icons\\icon1.ico";
+	case DPRES_NO_MEDIUM:    return "drive-icons\\iconNoMedium.ico";
+	case DPRES_NOT_LTFS:     return "drive-icons\\iconNotPartitionedMedium.ico";
+	case DPRES_UNSUPPORTED:  return "drive-icons\\iconUnsupportedMedium.ico";
+	case DPRES_INCONSISTENT: return "drive-icons\\iconInconsistentMedium.ico";
+	default:                 return "drive-icons\\iconUnhandledError.ico";
+	}
+}
+
+/* HPE's per-state default drive label (what FUSE4Win.dll writes to DefaultLabel).
+ * DPRES_MOUNTED returns the fallback used only when the cartridge has no volume
+ * name of its own; the caller prefers the real name. */
+const char *drive_state_label(enum drive_state s)
+{
+	switch (s) {
+	case DPRES_MOUNTED:      return "LTFS Volume";
+	case DPRES_NO_MEDIUM:    return "No Cartridge";
+	case DPRES_NOT_LTFS:     return "Unformatted Cartridge";
+	case DPRES_UNSUPPORTED:  return "Unsupported Cartridge";
+	case DPRES_INCONSISTENT: return "Cartridge Repair Needed";
+	default:                 return "LTFS Volume";
+	}
+}
+
+/* Absolute path, into out[], to a file sitting in the same directory as the
+ * running module. Returns false if the module path can't be resolved or the
+ * file isn't there. */
+static bool module_sibling_path(const char *name, char *out, size_t outsz)
+{
+	char dir[MAX_PATH];
+	DWORD n = GetModuleFileNameA(NULL, dir, sizeof(dir));
+	char *slash;
+	if (n == 0 || n >= sizeof(dir))
+		return false;
+	slash = strrchr(dir, '\\');
+	if (!slash)
+		return false;
+	*slash = '\0';
+	if ((size_t)snprintf(out, outsz, "%s\\%s", dir, name) >= outsz)
+		return false;
+	return GetFileAttributesA(out) != INVALID_FILE_ATTRIBUTES;
+}
+
+/* Explorer honours a DriveIcons override under HKCU first, then HKLM. Which one
+ * is writable/visible depends on the elevation ltfs.exe runs at (HKLM needs
+ * admin; an elevated process's HKCU is the wrong hive for the desktop shell), so
+ * we write both and let whichever is correct win. */
+static HKEY drive_present_roots[2] = { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE };
+
+static void set_one_presentation(HKEY root, const char *letter, const char *label,
+	const char *iconpath)
+{
+	char subkey[160];
+	HKEY key;
+
+	snprintf(subkey, sizeof(subkey),
+		"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DriveIcons\\%s\\DefaultLabel",
+		letter);
+	if (RegCreateKeyExA(root, subkey, 0, NULL, 0, KEY_SET_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
+		const char *v = label ? label : "";
+		RegSetValueExA(key, NULL, 0, REG_SZ, (const BYTE *)v, (DWORD)(strlen(v) + 1));
+		RegCloseKey(key);
+	}
+
+	snprintf(subkey, sizeof(subkey),
+		"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DriveIcons\\%s\\DefaultIcon",
+		letter);
+	if (iconpath) {
+		if (RegCreateKeyExA(root, subkey, 0, NULL, 0, KEY_SET_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
+			RegSetValueExA(key, NULL, 0, REG_SZ, (const BYTE *)iconpath, (DWORD)(strlen(iconpath) + 1));
+			RegCloseKey(key);
+		}
+	} else {
+		/* No icon for this state: drop any stale one so Explorer doesn't keep
+		 * showing the previous cartridge's state icon. */
+		RegDeleteKeyA(root, subkey);
+	}
+}
+
+void set_drive_presentation(const char *letter, const char *label, enum drive_state state)
+{
+	char iconpath[MAX_PATH];
+	const char *icon = NULL;
+	size_t i;
+
+	if (!letter || !letter[0])
+		return;   /* not a drive-letter mount (e.g. a directory mountpoint) */
+
+	if (module_sibling_path(drive_state_icon(state), iconpath, sizeof(iconpath)))
+		icon = iconpath;
+
+	for (i = 0; i < sizeof(drive_present_roots) / sizeof(drive_present_roots[0]); i++)
+		set_one_presentation(drive_present_roots[i], letter, label, icon);
+
+	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+}
+
+void clear_drive_presentation(const char *letter)
+{
+	char subkey[160];
+	size_t i;
+	if (!letter || !letter[0])
+		return;
+	snprintf(subkey, sizeof(subkey),
+		"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DriveIcons\\%s", letter);
+	for (i = 0; i < sizeof(drive_present_roots) / sizeof(drive_present_roots[0]); i++)
+		RegDeleteTreeA(drive_present_roots[i], subkey);   /* removes DefaultLabel + DefaultIcon */
+	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 }

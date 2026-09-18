@@ -87,6 +87,10 @@
 #include "libltfs/ltfs_internal.h"
 #endif
 
+#ifdef HPE_mingw_BUILD
+#include <ctype.h>
+#endif
+
 #if (__WORDSIZE == 64)
 #define FILEHANDLE_TO_STRUCT(fh) ((struct ltfs_file_handle *)(uint64_t)(fh))
 #define STRUCT_TO_FILEHANDLE(de) ((uint64_t)(de))
@@ -1296,6 +1300,31 @@ int ltfs_fuse_removexattr(const char *path, const char *name)
 	return errormap_fuse_error(ret);
 }
 
+#ifdef HPE_mingw_BUILD
+/*
+ * Update the Explorer label + icon for this mount's drive letter through the
+ * registry DriveIcons override. A mounted cartridge shows its own LTFS volume
+ * name; any other state shows HPE's per-state label/icon (drive_state_label /
+ * drive_state_icon in arch/win/win_util.c), kept for when a cartridge is in an
+ * abnormal state. Best effort — registry failures are ignored.
+ */
+static void ltfs_update_drive_label(struct ltfs_fuse_data *priv, enum drive_state state)
+{
+	char *name = NULL;
+
+	if (!priv->drive_letter[0])
+		return;
+
+	if (state == DPRES_MOUNTED &&
+	    ltfs_get_volume_name(&name, priv->data) >= 0 && name && name[0]) {
+		set_drive_presentation(priv->drive_letter, name, state);
+	} else {
+		set_drive_presentation(priv->drive_letter, drive_state_label(state), state);
+	}
+	free(name);
+}
+#endif /* HPE_mingw_BUILD */
+
 /**
  * Mount the filesystem. This function assumes a volume has been
  * allocated and ltfs_mount has been called; it just does some secondary setup.
@@ -1321,6 +1350,23 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 #endif
 
 #ifdef HPE_mingw_BUILD
+
+	/* Capture the mount drive letter (for the Explorer DriveIcons override) from
+	 * the argv the mountpoint was given as, e.g. "T:" or "T". A directory
+	 * mountpoint leaves drive_letter empty and disables the override. */
+	priv->drive_letter[0] = '\0';
+	if (priv->args) {
+		int i;
+		for (i = 1; i < priv->args->argc; i++) {
+			const char *a = priv->args->argv[i];
+			if (a && isalpha((unsigned char)a[0]) &&
+			    (a[1] == '\0' || (a[1] == ':' && a[2] == '\0'))) {
+				priv->drive_letter[0] = (char)toupper((unsigned char)a[0]);
+				priv->drive_letter[1] = '\0';
+				break;
+			}
+		}
+	}
 
 	/* Allocate the LTFS volume structure */
 	if (! priv->data) {
@@ -1667,6 +1713,11 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 	ltfs_request_trace(FUSE_REQ_EXIT(REQ_MOUNT), (uint64_t)priv, 0);
 #endif /* 0 */
 
+#ifdef HPE_mingw_BUILD
+	/* Cartridge mounted: show its volume name and the mounted icon in Explorer. */
+	ltfs_update_drive_label(priv, DPRES_MOUNTED);
+#endif
+
 	return priv;
 }
 
@@ -1681,6 +1732,11 @@ void ltfs_fuse_umount(void *userdata)
 #if 0
 	ltfs_request_trace(FUSE_REQ_ENTER(REQ_UNMOUNT), 0, 0);
 #endif /* 0 */
+
+#ifdef HPE_mingw_BUILD
+	/* Drop the Explorer label/icon override as the drive letter goes away. */
+	clear_drive_presentation(priv->drive_letter);
+#endif
 
 	if (periodic_sync_thread_initialized(priv->data))
 		periodic_sync_thread_destroy(priv->data);

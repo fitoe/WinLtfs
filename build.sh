@@ -77,6 +77,10 @@ default iosched unified
 default kmi none
 EOF
 
+    echo "==> Staging drive icons"
+    mkdir -p "$DIST/drive-icons"
+    cp "$ROOT"/resources/drive-icons/*.ico "$DIST/drive-icons/"
+
     echo "==> Staging license texts"
     cp "$ROOT/LICENSE" "$DIST/"          # LTFS engine: LGPL v2.1
     cp -r "$ROOT/licenses" "$DIST/"      # third-party runtime component licenses

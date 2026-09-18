@@ -468,6 +468,31 @@ char *strtok_r(char *str, const char *delim, char **saveptr);
 
 int win_ltfs_dummy(void);
 
+/*
+ * Explorer drive presentation (DriveIcons registry override). The WinFsp volume
+ * label is fixed at mount, so — as HPE StoreOpen's FUSE4Win.dll did — we show the
+ * live cartridge name and a per-state icon by writing the drive letter's
+ * DriveIcons\{DefaultLabel,DefaultIcon} keys and refreshing Explorer.
+ */
+enum drive_state {
+	DPRES_MOUNTED,      /* an LTFS cartridge is mounted: show its volume name */
+	DPRES_NO_MEDIUM,    /* drive empty */
+	DPRES_NOT_LTFS,     /* medium present but not a usable LTFS volume */
+	DPRES_UNSUPPORTED,  /* medium unsupported/unreadable */
+	DPRES_INCONSISTENT, /* index invalid/inconsistent */
+	DPRES_ERROR,        /* unhandled error */
+};
+
+/* letter is a bare drive letter ("T"); empty/NULL is a no-op (directory mount).
+ * label may be NULL/empty for no custom label. Best effort — registry failures
+ * are ignored. */
+/* HPE's default Explorer label for a state (e.g. "No Cartridge",
+ * "Unformatted Cartridge"). DPRES_MOUNTED yields the "LTFS Volume" fallback used
+ * only when the cartridge has no name of its own. */
+const char *drive_state_label(enum drive_state state);
+void set_drive_presentation(const char *letter, const char *label, enum drive_state state);
+void clear_drive_presentation(const char *letter);
+
 #if defined(HPE_mingw_BUILD)
 int scandir(const char *dirp, 
             struct dirent ***namelist,
