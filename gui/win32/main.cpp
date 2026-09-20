@@ -17,12 +17,13 @@
 
 namespace fs = std::filesystem;
 constexpr UINT DONE = WM_APP + 1;
-enum { DEVICE=101, LETTER, REFRESH, MOUNT, UNMOUNT, LOCATE, LOGS, ADVANCED };
+enum { DEVICE=101, LETTER, REFRESH, MOUNT, UNMOUNT, LOCATE, LOGS, ADVANCED, RESET };
 HWND window, devices, letters, refreshButton, mountButton, stopButton, locateButton, logsButton, statusLabel;
 HFONT font;
 HWND advancedButton, verbosityBox, syncBox, intervalBox, minimumBox, maximumBox;
 std::vector<HWND> advancedControls; bool expanded=false;
 std::vector<std::wstring> mountOptions;
+std::vector<std::wstring> lastDevices; DWORD lastDrives=0; unsigned refreshTicks=0;
 fs::path engine, logDir;
 HANDLE engineProcess = nullptr;
 DWORD enginePid = 0;
@@ -97,18 +98,20 @@ std::wstring selected(HWND box) {
 void controls() {
     bool idle=!busy&&!engineProcess;
     EnableWindow(devices,idle);EnableWindow(letters,idle);EnableWindow(refreshButton,idle);EnableWindow(locateButton,idle);
-    EnableWindow(mountButton,idle&&validEngine(engine)&&!selected(devices).empty()&&!selected(letters).empty());
+    EnableWindow(mountButton,!busy&&(engineProcess||(validEngine(engine)&&!selected(devices).empty()&&!selected(letters).empty())));
+    SetWindowTextW(mountButton,engineProcess?L"Safely unmount":L"Mount");
     for(auto c:advancedControls)EnableWindow(c,idle);
     EnableWindow(advancedButton,!busy);
     EnableWindow(stopButton,!busy&&engineProcess);EnableWindow(logsButton,!logDir.empty());
     ShowWindow(locateButton,validEngine(engine)?SW_HIDE:SW_SHOW);
 }
 void refresh() {
-    auto old=selected(devices), letter=selected(letters); if(letter.empty())letter=L"T:";
+    auto old=selected(devices), letter=selected(letters); if(letter.empty()){std::ifstream saved(settings()/L"drive-letter.txt");char c=0;saved.get(c);letter=(c>='D'&&c<='Z')?std::wstring{static_cast<wchar_t>(c),L':'}:L"T:";}
     SendMessageW(devices,CB_RESETCONTENT,0,0); SendMessageW(letters,CB_RESETCONTENT,0,0);
-    for(auto& d:tapeDevices()) SendMessageW(devices,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(d.c_str()));
+    lastDevices=tapeDevices();
+    for(auto& d:lastDevices) SendMessageW(devices,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(d.c_str()));
     auto i=SendMessageW(devices,CB_FINDSTRINGEXACT,-1,reinterpret_cast<LPARAM>(old.c_str())); SendMessageW(devices,CB_SETCURSEL,i==CB_ERR?0:i,0);
-    DWORD used=GetLogicalDrives();
+    DWORD used=GetLogicalDrives();lastDrives=used;
     for(wchar_t c=L'D';c<=L'Z';++c)if(!(used&(1u<<(c-L'A')))){std::wstring s{c,L':'};SendMessageW(letters,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(s.c_str()));}
     i=SendMessageW(letters,CB_FINDSTRINGEXACT,-1,reinterpret_cast<LPARAM>(letter.c_str()));SendMessageW(letters,CB_SETCURSEL,i==CB_ERR?0:i,0);
     controls();
@@ -194,7 +197,7 @@ LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         control(L"STATIC",L"Tape drive",0,24,28,110,25);devices=control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_TABSTOP|WS_VSCROLL,140,24,390,220,DEVICE);refreshButton=control(L"BUTTON",L"Refresh",WS_TABSTOP,546,23,120,30,REFRESH);
         control(L"STATIC",L"Drive letter",0,24,76,110,25);letters=control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_TABSTOP|WS_VSCROLL,140,72,390,350,LETTER);
         control(L"STATIC",L"Mounting may write to tape. Use physical write protection for read-only access.",0,24,124,660,48);
-        mountButton=control(L"BUTTON",L"Mount",WS_TABSTOP,140,192,110,34,MOUNT);stopButton=control(L"BUTTON",L"Unmount",WS_TABSTOP,262,192,110,34,UNMOUNT);logsButton=control(L"BUTTON",L"Logs",WS_TABSTOP,384,192,100,34,LOGS);locateButton=control(L"BUTTON",L"Locate WinLtfs",WS_TABSTOP,496,192,170,34,LOCATE);
+        mountButton=control(L"BUTTON",L"Mount",WS_TABSTOP,140,192,170,36,MOUNT);stopButton=nullptr;logsButton=control(L"BUTTON",L"Logs",WS_TABSTOP,326,192,100,36,LOGS);locateButton=control(L"BUTTON",L"Locate WinLtfs",WS_TABSTOP,442,192,190,36,LOCATE);
         statusLabel=control(L"STATIC",L"Not mounted",0,24,242,650,48);
         advancedButton=control(L"BUTTON",L"Advanced options",WS_TABSTOP,24,294,170,30,ADVANCED);
         auto advanced=[&](const wchar_t* type,const wchar_t* text,DWORD style,int x,int y,int w,int h){HWND c=control(type,text,style,x,y,w,h);advancedControls.push_back(c);ShowWindow(c,SW_HIDE);return c;};
@@ -208,19 +211,22 @@ LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
         advanced(L"STATIC",L"Write cache",0,24,426,110,24);minimumBox=advanced(L"EDIT",L"25",WS_BORDER|ES_NUMBER|WS_TABSTOP,140,422,90,27);
         advanced(L"STATIC",L"to",0,240,426,30,24);maximumBox=advanced(L"EDIT",L"50",WS_BORDER|ES_NUMBER|WS_TABSTOP,280,422,90,27);advanced(L"STATIC",L"MiB (min / max)",0,390,426,180,24);
         advanced(L"STATIC",L"Defaults are recommended. Larger write cache is not a read-speed fix.",0,24,468,650,28);
+        HWND reset=control(L"BUTTON",L"Restore defaults",WS_TABSTOP,24,506,170,30,RESET);advancedControls.push_back(reset);ShowWindow(reset,SW_HIDE);
         discover();refresh();
         if(!validEngine(engine))SetWindowTextW(statusLabel,L"WinLtfs was not found. Use Locate WinLtfs to select its directory.");
-        else if(selected(devices).empty())SetWindowTextW(statusLabel,L"No tape drive detected. Power on the drive and refresh.");
+        else if(selected(devices).empty())SetWindowTextW(statusLabel,L"No tape drive detected. The list updates automatically.");
         SetTimer(hwnd,1,1000,nullptr);return 0;}
     case WM_COMMAND:
         if(busy)return 0;
         switch(LOWORD(wp)){
         case DEVICE:case LETTER:controls();break;
-        case ADVANCED:expanded=!expanded;for(auto c:advancedControls)ShowWindow(c,expanded?SW_SHOW:SW_HIDE);SetWindowPos(hwnd,nullptr,0,0,714,expanded?550:375,SWP_NOMOVE|SWP_NOZORDER);break;
+        case ADVANCED:expanded=!expanded;for(auto c:advancedControls)ShowWindow(c,expanded?SW_SHOW:SW_HIDE);SetWindowPos(hwnd,nullptr,0,0,714,expanded?590:375,SWP_NOMOVE|SWP_NOZORDER);break;
+        case RESET:SendMessageW(verbosityBox,CB_SETCURSEL,0,0);SendMessageW(syncBox,CB_SETCURSEL,0,0);SetWindowTextW(intervalBox,L"5");SetWindowTextW(minimumBox,L"25");SetWindowTextW(maximumBox,L"50");break;
         case REFRESH:refresh();break;
         case LOGS:ShellExecuteW(hwnd,L"open",logDir.c_str(),nullptr,nullptr,SW_SHOWNORMAL);break;
         case LOCATE:{BROWSEINFOW bi{};bi.hwndOwner=hwnd;bi.lpszTitle=L"Select the WinLtfs folder containing ltfs.exe and its DLLs";bi.ulFlags=BIF_RETURNONLYFSDIRS|BIF_NEWDIALOGSTYLE;auto item=SHBrowseForFolderW(&bi);if(item){wchar_t path[MAX_PATH];bool ok=SHGetPathFromIDListW(item,path);CoTaskMemFree(item);if(ok&&validEngine(path)){engine=path;fs::create_directories(settings());std::ofstream(settings()/L"native-engine.txt",std::ios::binary)<<utf8(engine.wstring());SetWindowTextW(statusLabel,L"Not mounted");controls();}else MessageBoxW(hwnd,L"Required WinLtfs engine files are missing.",L"WinLtfs",MB_ICONERROR);}break;}
         case MOUNT:{
+            if(engineProcess){requestStop();break;}
                         auto number=[](HWND c,int low,int high){wchar_t text[32];GetWindowTextW(c,text,32);wchar_t* end;long n=wcstol(text,&end,10);if(!*text||*end||n<low||n>high)throw std::wstring(L"Invalid advanced setting. Minutes: 1-1440; cache: 1-4096 MiB.");return n;};
             long minutes=number(intervalBox,1,1440),minimum=number(minimumBox,1,4096),maximum=number(maximumBox,1,4096);
             if(minimum>maximum)throw std::wstring(L"Minimum cache must not exceed maximum cache.");
@@ -229,8 +235,14 @@ LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
             auto d=selected(devices),l=selected(letters);SetWindowTextW(statusLabel,L"Loading tape index, please wait...");background([d,l]{launch(d,l);waitReady(l);return Result{L"Mounted "+l+L" - "+d,false};});break;}
         case UNMOUNT:requestStop();break;
         }return 0;
-    case DONE:{if(worker.joinable())worker.join();auto r=reinterpret_cast<Result*>(lp);busy=false;SetWindowTextW(statusLabel,r->text.c_str());bool clean=r->clean;delete r;if(exited())releaseProcess();if(!engineProcess)refresh();controls();if(closeAfterStop&&clean)DestroyWindow(hwnd);else closeAfterStop=false;return 0;}
-    case WM_TIMER:if(!busy&&exited()){releaseProcess();SetWindowTextW(statusLabel,L"Engine exited unexpectedly. Check Logs before mounting again.");refresh();}return 0;
+    case DONE:{if(worker.joinable())worker.join();auto r=reinterpret_cast<Result*>(lp);busy=false;SetWindowTextW(statusLabel,r->text.c_str());bool clean=r->clean;
+        if(r->text.rfind(L"Mounted ",0)==0){fs::create_directories(settings());std::ofstream saved(settings()/L"drive-letter.txt");saved<<static_cast<char>(selected(letters)[0]);}
+        delete r;if(exited())releaseProcess();if(!engineProcess)refresh();controls();if(closeAfterStop&&clean)DestroyWindow(hwnd);else closeAfterStop=false;return 0;}
+    case WM_TIMER:
+        if(!busy&&!engineProcess&&++refreshTicks%3==0&&!SendMessageW(devices,CB_GETDROPPEDSTATE,0,0)&&!SendMessageW(letters,CB_GETDROPPEDSTATE,0,0)){
+            auto current=tapeDevices();if(current!=lastDevices||GetLogicalDrives()!=lastDrives){refresh();if(validEngine(engine))SetWindowTextW(statusLabel,current.empty()?L"No tape drive detected. Waiting for a device...":L"Tape drive detected. Ready to mount.");}
+        }
+        if(!busy&&exited()){releaseProcess();SetWindowTextW(statusLabel,L"Engine exited unexpectedly. Check Logs before mounting again.");refresh();}return 0;
     case WM_CLOSE:if(busy){MessageBoxW(hwnd,L"Please wait for the current operation before closing.",L"WinLtfs",MB_OK);return 0;}if(engineProcess){closeAfterStop=true;requestStop();return 0;}DestroyWindow(hwnd);return 0;
     case WM_DESTROY:KillTimer(hwnd,1);DeleteObject(font);PostQuitMessage(0);return 0;
     }

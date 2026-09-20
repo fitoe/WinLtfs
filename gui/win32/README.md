@@ -1,6 +1,6 @@
 # Native Win32 mount manager (draft)
 
-Small C++17/Win32 GUI: tape device, available drive letter, Mount, Unmount and session logs. No .NET, WinForms, service, or installer. MinGW C++/thread runtimes are statically linked; the executable imports Windows system DLLs only (including Windows 10/11's UCRT). WinLtfs's own DLL distribution and an installed WinFsp driver are still required.
+Small C++17/Win32 GUI: tape device, available drive letter, one state-dependent Mount / Safely unmount button, and session logs. Device/letter lists refresh automatically every three seconds while idle (not while their dropdowns are open). The last successfully mounted letter is saved, with an available fallback if occupied. Advanced options stay collapsed and offer Restore defaults. No .NET, WinForms, service, or installer. MinGW C++/thread runtimes are statically linked; the executable imports Windows system DLLs only (including Windows 10/11's UCRT). WinLtfs's own DLL distribution and an installed WinFsp driver are still required.
 
 Build on Windows with MSYS2 UCRT64 GCC:
 
