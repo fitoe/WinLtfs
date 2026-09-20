@@ -1352,14 +1352,20 @@ void * ltfs_fuse_mount(struct fuse_conn_info *conn)
 #ifdef HPE_mingw_BUILD
 
 	/* Capture the mount drive letter (for the Explorer DriveIcons override) from
-	 * the argv the mountpoint was given as, e.g. "T:" or "T". A directory
-	 * mountpoint leaves drive_letter empty and disables the override. */
+	 * the argv the mountpoint was given as: "T", "T:", or the mount-manager form
+	 * "\\.\T:" / "\\?\T:". A directory mountpoint (e.g. "T:\dir") leaves
+	 * drive_letter empty and disables the override. */
 	priv->drive_letter[0] = '\0';
 	if (priv->args) {
 		int i;
 		for (i = 1; i < priv->args->argc; i++) {
 			const char *a = priv->args->argv[i];
-			if (a && isalpha((unsigned char)a[0]) &&
+			if (!a)
+				continue;
+			if (a[0] == '\\' && a[1] == '\\' &&
+			    (a[2] == '.' || a[2] == '?') && a[3] == '\\')
+				a += 4;
+			if (isalpha((unsigned char)a[0]) &&
 			    (a[1] == '\0' || (a[1] == ':' && a[2] == '\0'))) {
 				priv->drive_letter[0] = (char)toupper((unsigned char)a[0]);
 				priv->drive_letter[1] = '\0';
