@@ -4,6 +4,10 @@
 # Build output (binaries, runtime DLLs, generated ltfs.conf)
 /dist/
 
+# Installer build artifacts (compiled setup + downloaded WinFsp MSI)
+/Output/
+/redist/
+
 # In-tree autotools/libtool build artifacts (setup.sh + build.sh)
 .deps/
 .libs/

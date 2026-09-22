@@ -91,20 +91,40 @@ jobs:
           ./setup.sh
           ./build.sh all
 
-      - name: Package
-        id: package
+      - name: Package portable zip
+        id: portable
         shell: pwsh
         run: |
-          $zip = "WinLtfs-v$env:RELEASE_VERSION.zip"
+          $zip = "WinLtfs-v$env:RELEASE_VERSION-portable.zip"
           Compress-Archive -Path dist\* -DestinationPath $zip -Force
           "path=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Build installer
+        id: installer
+        shell: pwsh
+        run: |
+          $redist = 'redist'
+          New-Item -ItemType Directory -Force -Path $redist | Out-Null
+          Copy-Item (Join-Path $env:RUNNER_TEMP 'winfsp.msi') (Join-Path $redist 'winfsp.msi') -Force
+
+          choco install innosetup --no-progress -y
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+          & $iscc "/DMyAppVersion=$env:RELEASE_VERSION" 'installer.iss'
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
+
+          $exe = Get-ChildItem 'Output\*.exe' | Select-Object -First 1
+          if (-not $exe) { throw "installer output not found." }
+          "path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
 
       - name: Create GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:RELEASE_TAG "${{ steps.package.outputs.path }}" `
+          gh release create $env:RELEASE_TAG `
+            "${{ steps.portable.outputs.path }}" `
+            "${{ steps.installer.outputs.path }}" `
             --target "${{ github.sha }}" `
             --title "v$env:RELEASE_VERSION" `
             --notes "" `
