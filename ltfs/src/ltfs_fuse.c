@@ -1843,10 +1843,12 @@ int ltfs_fuse_readlink(const char* path, char* buf, size_t size)
 
 #ifdef mingw_PLATFORM
 /* Read-only WinFsp control interface.
- * A fixed output-only command per allowlisted attribute; no arbitrary xattr
- * names, setters, tape handles or filesystem mutations are accepted.
+ * Fixed output-only commands for named attributes, plus a bounded MAM reader.
+ * No arbitrary xattr names, setters, or filesystem mutations are accepted.
  */
 #include "libltfs/ltog_attributes.h"
+#include "libltfs/ltog_mam.h"
+#include "libltfs/tape.h"
 
 struct ltog_attribute_response {
     uint32_t magic;
@@ -1854,10 +1856,103 @@ struct ltog_attribute_response {
     int32_t status;             /* raw LTFS error, or 0 */
     uint32_t length;
     char volume_uuid[40];      /* binds separate replies to one mounted volume */
-    char reserved[8];
-    char value[4032];          /* UTF-8, length delimited */
+    char reserved[8];          /* v1: zero; v2: total length and byte offset */
+    char value[4032];          /* v1: UTF-8; v2: raw MAM payload */
 };
 typedef char ltog_response_size_check[sizeof(struct ltog_attribute_response) == 4096 ? 1 : -1];
+typedef char ltog_request_size_check[sizeof(struct ltog_mam_request) == 16 ? 1 : -1];
+
+static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
+    unsigned int flags, void *data)
+{
+    struct ltog_mam_request request;
+    struct ltog_attribute_response *response = data;
+    unsigned char *raw;
+    size_t received = 0, length = 0, count, i;
+    uint32_t total;
+    char uuid[36];
+    int ret, status;
+    if (flags || !data || !path || !vol || strcmp(path, "/"))
+        return -EINVAL;
+    /* WinFsp uses one METHOD_BUFFERED buffer for input and output. */
+    memcpy(&request, data, sizeof(request));
+    if (!ltog_mam_request_valid(&request))
+        return -EINVAL;
+    for (i = sizeof(request); i < sizeof(*response); ++i)
+        if (((const unsigned char *)data)[i])
+            return -EINVAL;
+    memset(response, 0, sizeof(*response));
+    response->magic = 0x474f544c;
+    response->version = 2;
+    ret = ltfs_test_unit_ready(vol);
+    if (ret < 0)
+        return errormap_fuse_error(ret);
+    raw = calloc(1, LTOG_MAM_BUFFER_SIZE);
+    if (!raw)
+        return -ENOMEM;
+    ret = ltfs_get_volume_lock(false, vol);
+    if (ret < 0) {
+        free(raw);
+        return errormap_fuse_error(ret);
+    }
+    if (!vol->label || !vol->device) {
+        releaseread_mrsw(&vol->lock);
+        free(raw);
+        return -EIO;
+    }
+    memcpy(uuid, vol->label->vol_uuid, sizeof(uuid));
+    ret = tape_device_lock(vol->device);
+    if (!ret) {
+        ret = vol->device->backend->read_mam(vol->device->backend_data,
+            request.partition, request.operation ? 0 : 1, request.attribute,
+            raw, LTOG_MAM_BUFFER_SIZE, &received);
+        if (NEED_REVAL(ret)) {
+            tape_start_fence(vol->device);
+            tape_device_unlock(vol->device);
+            /* Revalidation consumes the volume lock; never publish old bytes. */
+            ltfs_revalidate(false, vol);
+            free(raw);
+            return -EIO;
+        }
+        if (IS_UNEXPECTED_MOVE(ret))
+            vol->reval = -LTFS_REVAL_FAILED;
+        tape_device_unlock(vol->device);
+    }
+    releaseread_mrsw(&vol->lock);
+    status = ret;
+    if (!status)
+        status = ltog_mam_payload(raw, received, &request, &length);
+    ret = ltfs_test_unit_ready(vol);
+    if (ret < 0) {
+        free(raw);
+        return errormap_fuse_error(ret);
+    }
+    ret = ltfs_get_volume_lock(false, vol);
+    if (ret < 0) {
+        free(raw);
+        return errormap_fuse_error(ret);
+    }
+    ret = !vol->label || memcmp(uuid, vol->label->vol_uuid, sizeof(uuid));
+    releaseread_mrsw(&vol->lock);
+    if (ret) {
+        free(raw);
+        return -EIO;
+    }
+    memcpy(response->volume_uuid, uuid, sizeof(uuid));
+    response->status = status;
+    if (!status) {
+        total = (uint32_t)length;
+        memcpy(response->reserved, &total, sizeof(total));
+        memcpy(response->reserved + 4, &request.offset, sizeof(request.offset));
+        count = length - request.offset;
+        if (count > sizeof(response->value))
+            count = sizeof(response->value);
+        memcpy(response->value, raw + 4 + request.offset, count);
+        response->length = count;
+    }
+    free(raw);
+    return 0;
+}
 
 static int ltog_query_attribute(struct ltfs_volume *vol, const char *path,
     unsigned int cmd, unsigned int flags, void *data)
@@ -1912,6 +2007,8 @@ static int ltfs_fuse_ioctl(const char *path, int cmd, void *arg,
     struct fuse_file_info *fi, unsigned int flags, void *data)
 {
     struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
+    if ((unsigned int)cmd == (unsigned int)FSP_FUSE_IOCTL(LTOG_MAM_COMMAND, 4096, 4096))
+        return ltog_query_mam(priv->data, path, flags, data);
     return ltog_query_attribute(priv->data, path, (unsigned int)cmd, flags, data);
 }
 #endif

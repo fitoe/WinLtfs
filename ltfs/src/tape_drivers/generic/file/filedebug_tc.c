@@ -1137,6 +1137,66 @@ int filedebug_allow_medium_removal(void *vstate)
 	return DEVICE_GOOD;
 }
 
+/* Mirror READ ATTRIBUTE with on-disk MAM records, including vendor IDs. */
+static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t action,
+    uint16_t id, unsigned char *buf, size_t size, size_t *received)
+{
+    struct filedebug_data *state = (struct filedebug_data *)vstate;
+    size_t length = 0;
+    *received = 0;
+    if (part > 1 || action > 1 || size < 4)
+        return -LTFS_BAD_ARG;
+    memset(buf, 0, size);
+    if (action == 1) {
+        DIR *dir = opendir(state->dirname);
+        struct dirent *entry;
+        unsigned char present[65536] = {0};
+        unsigned int p, a, i;
+        char extra;
+        if (!dir)
+            return -EDEV_CM_PERM;
+        while ((entry = readdir(dir))) {
+            if (sscanf(entry->d_name, "attr_%u_%x%c", &p, &a, &extra) == 2 &&
+                p == part && a <= 65535)
+                present[a] = 1;
+        }
+        closedir(dir);
+        for (i = 0; i <= 65535; ++i) {
+            if (!present[i])
+                continue;
+            if (length + 6 > size)
+                return -LTFS_SMALL_BUFFER;
+            buf[4 + length++] = (unsigned char)(i >> 8);
+            buf[4 + length++] = (unsigned char)i;
+        }
+    } else {
+        char *fname = _filedebug_make_attrname(state, part, id);
+        int fd;
+        ssize_t n;
+        struct stat st;
+        if (!fname)
+            return -LTFS_NO_MEMORY;
+        fd = open(fname, O_RDONLY | O_BINARY);
+        free(fname);
+        if (fd < 0)
+            return errno == ENOENT ? -LTFS_NO_XATTR : -EDEV_CM_PERM;
+        if (fstat(fd, &st) < 0 || st.st_size < 5 || (uint64_t)st.st_size > size - 4) {
+            close(fd);
+            return -LTFS_UNEXPECTED_VALUE;
+        }
+        n = read(fd, buf + 4, (size_t)st.st_size);
+        close(fd);
+        if (n != st.st_size)
+            return -EDEV_CM_PERM;
+        length = n;
+        if (length != 5u + ltfs_betou16(buf + 7))
+            return -LTFS_UNEXPECTED_VALUE;
+    }
+    ltfs_u32tobe(buf, (uint32_t)length);
+    *received = length + 4;
+    return 0;
+}
+
 int filedebug_read_attribute(void *vstate, const tape_partition_t part, const uint16_t id
 							 , unsigned char *buf, const size_t size)
 {
@@ -1783,6 +1843,7 @@ struct tape_ops filedebug_handler = {
 	.allow_medium_removal   = filedebug_allow_medium_removal,
 	.write_attribute        = filedebug_write_attribute,
 	.read_attribute         = filedebug_read_attribute,
+	.read_mam               = filedebug_read_mam,
 	.allow_overwrite        = filedebug_allow_overwrite,
 	.report_density         = filedebug_report_density,
 	.set_compression        = filedebug_set_compression,

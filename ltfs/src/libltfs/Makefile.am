@@ -34,7 +34,7 @@
 
 lib_LTLIBRARIES = libltfs.la
 
-noinst_HEADERS = ltog_attributes.h
+noinst_HEADERS = ltog_attributes.h ltog_mam.h
 nobase_pkginclude_HEADERS = ltfs.h tape_ops.h ltfs_types.h ltfslogging.h ltfstrace.h ltfs_thread.h ltfs_locking.h queue.h plugin.h config_file.h ltfs_error.h
 
 #

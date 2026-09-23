@@ -901,6 +901,14 @@ struct tape_ops {
 							 unsigned int attribute_id,
 							 const char *barcode_name,
 							 unsigned lockbit);
+
+	/* Read-only MAM discovery/value transport. action is 0 (values) or 1
+	 * (attribute list). Return the raw SCSI response INCLUDING its four-byte
+	 * available-data header and actual transferred byte count. Caller holds
+	 * the device lock. All backend plugins must be rebuilt for this ABI.
+	 */
+	int (*read_mam)(void *device, const tape_partition_t part, uint8_t action,
+		uint16_t id, unsigned char *buf, size_t size, size_t *received);
 };
 
 /**

@@ -35,6 +35,10 @@ output-only `DeviceIoControl` interface documented in
 [docs/attributes.md](docs/attributes.md). The attribute map is maintained in
 `ltfs/src/libltfs/ltog_attributes.h`.
 
+Complete MAM discovery and raw attribute reads are also available, including
+vendor-specific IDs on both partitions. Export a mounted tape with
+`python tools/mam_dump.py T:\ --output mam.json`; see the protocol document above.
+
 ## Supported Tape Drives
 
 | Brand    | LTO-5 | LTO-6 | LTO-7 | LTO-8 | LTO-9 |
