@@ -1365,6 +1365,13 @@ int single_drive_main(struct fuse_args *args, struct ltfs_fuse_data *priv)
 		ltfsmsg(LTFS_INFO, "17351I");
 #endif /* HPE_mingw_BUILD */
 
+#ifdef mingw_PLATFORM
+	/* A cached EA must not outlive a media change, even for CLI mounts. */
+	ret = fuse_opt_add_arg(args, "-oEaTimeout=0");
+	if (ret < 0)
+		return 1;
+#endif
+
 	/* now we can safely call FUSE */
 	ltfsmsg(LTFS_INFO, "14111I");
 	ltfsmsg(LTFS_INFO, "14112I");

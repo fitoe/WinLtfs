@@ -64,6 +64,9 @@
 #include "ltfs_fsops.h"
 #include "arch/filename_handling.h" // HPE MD 22/09/2017 Added support for SNIA 2.4 percent encoding
 #include "xattr.h"
+#ifdef mingw_PLATFORM
+#include "ltog_attributes.h"
+#endif
 #include "fs.h"
 #include "xml_libltfs.h"
 #include "pathname.h"
@@ -362,6 +365,23 @@ int xattr_list(struct dentry *d, char *list, size_t size, struct ltfs_volume *vo
 		goto out;
 	}
 	nbytes += ret;
+
+#ifdef mingw_PLATFORM
+	/* Only cheap, side-effect-free metadata on root EA enumeration. Hardware
+	 * diagnostics and file metadata use the output-only query interface. */
+	if (d == vol->index->root) {
+		size_t i;
+		for (i = 0; i < LTOG_ATTRIBUTE_COUNT; ++i) {
+			size_t length;
+			if (!ltog_attributes[i].ea)
+				continue;
+			length = strlen(ltog_attributes[i].name) + 1;
+			if (size && (size_t)nbytes + length <= size)
+				memcpy(list + nbytes, ltog_attributes[i].name, length);
+			nbytes += length;
+		}
+	}
+#endif
 
 	/*
 	 * There used to be an _xattr_list_virtuals function which was called here.
@@ -1057,11 +1077,23 @@ int _xattr_get_virtual(struct dentry *d, char *buf, size_t buf_size, const char 
 		} else if (! strcmp(name, "ltfs.mediaIndexPartitionAvailableSpace")) {
 			ret = _xattr_get_cartridge_capacity(&cap, &cap.remaining_ip, &val, name, vol);
 		} else if (! strcmp(name, "ltfs.mediaEncrypted")) {
-			ret = _xattr_get_string(tape_get_media_encrypted(vol->device), &val, name);
+			ret = tape_device_lock(vol->device);
+			if (ret == 0) {
+				ret = _xattr_get_string(tape_get_media_encrypted(vol->device), &val, name);
+				tape_device_unlock(vol->device);
+			}
 		} else if (! strcmp(name, "ltfs.driveEncryptionState")) {
-			ret = _xattr_get_string(tape_get_drive_encryption_state(vol->device), &val, name);
+			ret = tape_device_lock(vol->device);
+			if (ret == 0) {
+				ret = _xattr_get_string(tape_get_drive_encryption_state(vol->device), &val, name);
+				tape_device_unlock(vol->device);
+			}
 		} else if (! strcmp(name, "ltfs.driveEncryptionMethod")) {
-			ret = _xattr_get_string(tape_get_drive_encryption_method(vol->device), &val, name);
+			ret = tape_device_lock(vol->device);
+			if (ret == 0) {
+				ret = _xattr_get_string(tape_get_drive_encryption_method(vol->device), &val, name);
+				tape_device_unlock(vol->device);
+			}
 		} else if (! strcmp(name, "ltfs.vendor.IBM.referencedBlocks")) {
 			ret = _xattr_get_u64(ltfs_get_valid_block_count_unlocked(vol), &val, name);
 		} else if (! strcmp(name, "ltfs.vendor.IBM.trace")) {
