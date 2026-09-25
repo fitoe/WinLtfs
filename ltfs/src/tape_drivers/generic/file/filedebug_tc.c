@@ -1161,13 +1161,15 @@ static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t
                 present[a] = 1;
         }
         closedir(dir);
+        /* Like the drive: truncate at the allocation length, report full length. */
         for (i = 0; i <= 65535; ++i) {
             if (!present[i])
                 continue;
-            if (length + 6 > size)
-                return -LTFS_SMALL_BUFFER;
-            buf[4 + length++] = (unsigned char)(i >> 8);
-            buf[4 + length++] = (unsigned char)i;
+            if (4 + length < size)
+                buf[4 + length] = (unsigned char)(i >> 8);
+            if (5 + length < size)
+                buf[5 + length] = (unsigned char)i;
+            length += 2;
         }
     } else {
         char *fname = _filedebug_make_attrname(state, part, id);
@@ -1197,7 +1199,7 @@ static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t
         return 0;
     }
     ltfs_u32tobe(buf, (uint32_t)length);
-    *received = length + 4;
+    *received = length + 4 < size ? length + 4 : size;
     return 0;
 }
 

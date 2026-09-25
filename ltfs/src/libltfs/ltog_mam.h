@@ -33,9 +33,8 @@ static int ltog_mam_request_valid(const struct ltog_mam_request *r)
 static size_t ltog_mam_alloc(const struct ltog_mam_request *r)
 {
     size_t size = 4u + r->offset + LTOG_MAM_PAGE_SIZE;
-    if (r->operation)
-        return LTOG_MAM_BUFFER_SIZE;
-    return size < LTOG_MAM_VALUE_SIZE ? size : LTOG_MAM_VALUE_SIZE;
+    size_t max = r->operation ? LTOG_MAM_BUFFER_SIZE : LTOG_MAM_VALUE_SIZE;
+    return size < max ? size : max;
 }
 
 static unsigned int ltog_mam_be16(const unsigned char *p)
@@ -51,17 +50,14 @@ static int ltog_mam_payload(const unsigned char *raw, size_t received,
     const struct ltog_mam_request *r, size_t *length)
 {
     uint32_t available;
-    size_t i, n;
+    size_t i, n, need;
     if (received < 4 || received > LTOG_MAM_BUFFER_SIZE)
         return -LTFS_UNEXPECTED_VALUE;
     available = ((uint32_t)raw[0] << 24) | ((uint32_t)raw[1] << 16) |
         ((uint32_t)raw[2] << 8) | raw[3];
     if (r->operation) {
-        if ((available & 1) || available > received - 4)
+        if ((available & 1) || available > LTOG_MAM_BUFFER_SIZE - 4)
             return -LTFS_UNEXPECTED_VALUE;
-        for (i = 2; i < available; i += 2)
-            if (ltog_mam_be16(raw + 4 + i) <= ltog_mam_be16(raw + 2 + i))
-                return -LTFS_UNEXPECTED_VALUE;
         n = available;
     } else {
         if (!available)
@@ -71,10 +67,19 @@ static int ltog_mam_payload(const unsigned char *raw, size_t received,
         if (ltog_mam_be16(raw + 4) != r->attribute)
             return -LTFS_NO_XATTR;
         n = 5u + ltog_mam_be16(raw + 7);
-        i = r->offset + LTOG_MAM_PAGE_SIZE; /* bytes this page needs */
-        if (n > available || (n < i ? n : i) > received - 4)
+        if (n > available)
             return -LTFS_UNEXPECTED_VALUE;
     }
+    /* Reads are sized to this page, so the drive may truncate the rest. */
+    need = r->offset + LTOG_MAM_PAGE_SIZE;
+    if (need > n)
+        need = n;
+    if (need > received - 4)
+        return -LTFS_UNEXPECTED_VALUE;
+    if (r->operation)
+        for (i = 2; i + 2 <= need; i += 2)
+            if (ltog_mam_be16(raw + 4 + i) <= ltog_mam_be16(raw + 2 + i))
+                return -LTFS_UNEXPECTED_VALUE;
     if (r->offset > n)
         return -LTFS_BAD_ARG;
     *length = n;
