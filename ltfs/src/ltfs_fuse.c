@@ -1906,7 +1906,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     ret = tape_device_lock(vol->device);
     if (!ret) {
         ret = vol->device->backend->read_mam(vol->device->backend_data,
-            request.partition, request.operation ? 0 : 1, request.attribute,
+            request.partition, request.operation, request.attribute,
             raw, LTOG_MAM_BUFFER_SIZE, &received);
         if (NEED_REVAL(ret)) {
             tape_start_fence(vol->device);

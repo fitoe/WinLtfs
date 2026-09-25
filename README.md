@@ -381,7 +381,7 @@ with **4096-byte input and output buffers**. Zero the input buffer, then fill in
 | Offset | Type | Field |
 | --- | --- | --- |
 | 0 | uint32 | Version: `1` |
-| 4 | uint8 | Operation: `0` = list IDs, `1` = read one attribute |
+| 4 | uint8 | Operation: `0` = read one attribute, `1` = list IDs |
 | 5 | uint8 | Physical partition: `0` or `1` |
 | 6 | uint16 | Attribute ID to read (`0` when listing) |
 | 8 | uint32 | Byte offset to start from (`0` for the first page) |
