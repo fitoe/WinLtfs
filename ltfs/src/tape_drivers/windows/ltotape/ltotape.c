@@ -1812,6 +1812,7 @@ static int ltotape_read_mam(void *device, const tape_partition_t part, uint8_t a
         return -LTFS_UNSUPPORTED;
     memset(buf, 0, size);
     memset(sio->cdb, 0, 16);
+    memset(sio->sensedata, 0, sizeof(sio->sensedata)); /* no stale sense below */
     sio->cdb[0] = CMDread_attribute;
     sio->cdb[1] = action;
     sio->cdb[7] = (unsigned char)part;
@@ -1833,6 +1834,8 @@ static int ltotape_read_mam(void *device, const tape_partition_t part, uint8_t a
             status = -LTFS_UNEXPECTED_VALUE;
         else
             *received = sio->actual_data_length;
+    } else if (status < 0 && SENSE_IS_BAD_ATTRIBID(sio->sensedata)) {
+        status = -LTFS_NO_XATTR;
     }
     sio->data = NULL;
     sio->data_length = 0;
