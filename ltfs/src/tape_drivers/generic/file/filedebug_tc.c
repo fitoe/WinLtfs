@@ -1156,9 +1156,16 @@ static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t
         if (!dir)
             return -EDEV_CM_PERM;
         while ((entry = readdir(dir))) {
-            if (sscanf(entry->d_name, "attr_%u_%x%c", &p, &a, &extra) == 2 &&
-                p == part && a <= 65535)
+            char *fname;
+            struct stat st;
+            if (sscanf(entry->d_name, "attr_%u_%x%c", &p, &a, &extra) != 2 ||
+                p != part || a > 65535)
+                continue;
+            /* A zero-length write deletes the attribute, as on a real drive. */
+            fname = _filedebug_make_attrname(state, p, a);
+            if (fname && !stat(fname, &st) && st.st_size > 5)
                 present[a] = 1;
+            free(fname);
         }
         closedir(dir);
         /* Like the drive: truncate at the allocation length, report full length. */
@@ -1185,6 +1192,10 @@ static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t
         if (fstat(fd, &st) < 0 || st.st_size < 5 || st.st_size > 5 + 65535) {
             close(fd);
             return -LTFS_UNEXPECTED_VALUE;
+        }
+        if (st.st_size == 5) { /* deleted by a zero-length write */
+            close(fd);
+            return -LTFS_NO_XATTR;
         }
         /* Like the drive: truncate at the allocation length, report full length. */
         length = (size_t)st.st_size < size - 4 ? (size_t)st.st_size : size - 4;
