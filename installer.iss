@@ -32,7 +32,7 @@ LZMAUseSeparateProcess=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
-MinVersion=10.0.17763
+MinVersion=6.1sp1
 PrivilegesRequired=admin
 
 [Languages]

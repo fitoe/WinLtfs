@@ -68,7 +68,7 @@ echo "==> configure"
 # WinFsp port's guards (HP_) are all active.
 ./configure --host=x86_64-w64-mingw32 --build=x86_64-w64-mingw32 \
     --with-winfsp="$ROOT/build/wfsp" \
-    CFLAGS="-Dmingw_PLATFORM=1 -DHP_mingw_BUILD=1 -DHPE_mingw_BUILD=1 -D_FILE_OFFSET_BITS=64"
+    CFLAGS="-Dmingw_PLATFORM=1 -DHP_mingw_BUILD=1 -DHPE_mingw_BUILD=1 -D_FILE_OFFSET_BITS=64 -DWINVER=0x0601 -D_WIN32_WINNT=0x0601"
 
 echo
 echo "Setup complete. Build with: ./build.sh"
