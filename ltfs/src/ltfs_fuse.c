@@ -1878,6 +1878,8 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     memcpy(&request, data, sizeof(request));
     if (!ltog_mam_request_valid(&request))
         return -EINVAL;
+    if (!vol->device || !vol->device->backend->read_mam)
+        return -ENOTTY;
     for (i = sizeof(request); i < sizeof(*response); ++i)
         if (((const unsigned char *)data)[i])
             return -EINVAL;
