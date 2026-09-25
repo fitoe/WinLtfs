@@ -5,9 +5,10 @@
 #include <stddef.h>
 #include <string.h>
 #include "ltfs_error.h"
+#include "tape_ops.h"
 
 #define MAM_IOCTL_COMMAND 0x83b
-#define MAM_IOCTL_BUFFER_SIZE (4u + 2u * 65536u)
+#define MAM_IOCTL_BUFFER_SIZE TAPE_MAM_MAX_SIZE
 #define MAM_IOCTL_PAGE_SIZE 4032u
 #define MAM_IOCTL_VALUE_SIZE (4u + 5u + 65535u)
 

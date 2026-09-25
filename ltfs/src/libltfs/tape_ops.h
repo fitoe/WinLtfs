@@ -282,6 +282,9 @@ enum eod_status {
 	EOD_UNKNOWN     = 0x02
 };
 
+/* Largest read_mam response: four-byte header plus every possible attribute ID. */
+#define TAPE_MAM_MAX_SIZE (4u + 2u * 65536u)
+
 /* Structure of tape operations */
 struct tape_ops {
 	/**
@@ -906,6 +909,7 @@ struct tape_ops {
 	 * (attribute list). Return the raw SCSI response INCLUDING its four-byte
 	 * available-data header and actual transferred byte count. Caller holds
 	 * the device lock. All backend plugins must be rebuilt for this ABI.
+	 * Size is at most TAPE_MAM_MAX_SIZE.
 	 */
 	int (*read_mam)(void *device, const tape_partition_t part, uint8_t action,
 		uint16_t id, unsigned char *buf, size_t size, size_t *received);

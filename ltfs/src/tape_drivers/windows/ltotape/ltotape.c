@@ -1806,7 +1806,7 @@ static int ltotape_read_mam(void *device, const tape_partition_t part, uint8_t a
     ltotape_scsi_io_type *sio = (ltotape_scsi_io_type *)device;
     int status;
     *received = 0;
-    if (part > 1 || action > 1 || size < 4 || size > 131076)
+    if (part > 1 || action > 1 || size < 4 || size > TAPE_MAM_MAX_SIZE)
         return -LTFS_BAD_ARG;
     if (sio->family == drivefamily_dat)
         return -LTFS_UNSUPPORTED;
