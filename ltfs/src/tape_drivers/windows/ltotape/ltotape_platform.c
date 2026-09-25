@@ -153,9 +153,12 @@ int ltotape_scsiexec (ltotape_scsi_io_type *scsi_io)
   h = (HANDLE)scsi_io->fd;
 
 /*
- * To start with, clear the whole structure and request sense buffer:
+ * To start with, clear the whole structure and request sense buffer, and the
+ *  caller's copy so a failure without sense data can't be read as an older one:
  */
   ZeroMemory (&sptio, sizeof(SPTTfrType));
+  ZeroMemory (scsi_io->sensedata, sizeof(scsi_io->sensedata));
+  scsi_io->sense_length = 0;
 
 /*
  * Now start filling in the various structure members:
