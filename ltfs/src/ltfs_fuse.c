@@ -1868,7 +1868,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     struct ltog_mam_request request;
     struct ltog_attribute_response *response = data;
     unsigned char *raw;
-    size_t received = 0, length = 0, count, i;
+    size_t received = 0, length = 0, size, count, i;
     uint32_t total;
     char uuid[36];
     int ret, status;
@@ -1889,7 +1889,8 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     ret = ltfs_test_unit_ready(vol);
     if (ret < 0)
         return errormap_fuse_error(ret);
-    raw = calloc(1, LTOG_MAM_BUFFER_SIZE);
+    size = ltog_mam_alloc(&request);
+    raw = calloc(1, size);
     if (!raw)
         return -ENOMEM;
     ret = ltfs_get_volume_lock(false, vol);
@@ -1907,7 +1908,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     if (!ret) {
         ret = vol->device->backend->read_mam(vol->device->backend_data,
             request.partition, request.operation, request.attribute,
-            raw, LTOG_MAM_BUFFER_SIZE, &received);
+            raw, size, &received);
         if (NEED_REVAL(ret)) {
             tape_start_fence(vol->device);
             tape_device_unlock(vol->device);

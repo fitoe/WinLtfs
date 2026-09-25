@@ -9,6 +9,7 @@
 #define LTOG_MAM_COMMAND 0x83b
 #define LTOG_MAM_BUFFER_SIZE (4u + 2u * 65536u)
 #define LTOG_MAM_PAGE_SIZE 4032u
+#define LTOG_MAM_VALUE_SIZE (4u + 5u + 65535u)
 
 /* Native little-endian Windows wire layout. operation: 0=value, 1=list.
  * Partition is the physical partition number (0 or 1), not the LTFS letter.
@@ -27,6 +28,14 @@ static int ltog_mam_request_valid(const struct ltog_mam_request *r)
     return r->version == 1 && r->operation <= 1 && r->partition <= 1 &&
         !r->reserved && (!r->operation || !r->attribute) &&
         r->offset <= LTOG_MAM_BUFFER_SIZE - 4;
+}
+
+static size_t ltog_mam_alloc(const struct ltog_mam_request *r)
+{
+    size_t size = 4u + r->offset + LTOG_MAM_PAGE_SIZE;
+    if (r->operation)
+        return LTOG_MAM_BUFFER_SIZE;
+    return size < LTOG_MAM_VALUE_SIZE ? size : LTOG_MAM_VALUE_SIZE;
 }
 
 static unsigned int ltog_mam_be16(const unsigned char *p)
@@ -62,7 +71,8 @@ static int ltog_mam_payload(const unsigned char *raw, size_t received,
         if (ltog_mam_be16(raw + 4) != r->attribute)
             return -LTFS_NO_XATTR;
         n = 5u + ltog_mam_be16(raw + 7);
-        if (n > available || n > received - 4)
+        i = r->offset + LTOG_MAM_PAGE_SIZE; /* bytes this page needs */
+        if (n > available || (n < i ? n : i) > received - 4)
             return -LTFS_UNEXPECTED_VALUE;
     }
     if (r->offset > n)
