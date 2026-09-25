@@ -1790,15 +1790,16 @@ int ltotape_allow_medium_removal(void *device)
 }
 
 /**------------------------------------------------------------------------**
- * Read attribute
+ * Raw, bounded READ ATTRIBUTE for complete MAM discovery and binary values
  * @param device a pointer to the ltotape backend
- * @param part partition to read attribute
- * @param id attribute id to get
- * @param buf pointer to the attribute buffer. This function will update this value.
+ * @param part partition to read attribute (0 or 1)
+ * @param action SCSI service action: 0 for attribute values, 1 for attribute list
+ * @param id first attribute id to return
+ * @param buf pointer to the response buffer, including the four-byte header
  * @param size length of the buffer
+ * @param received set to the number of bytes transferred
  * @return 0 on success or a negative value on error
  */
-/* Raw, bounded READ ATTRIBUTE for complete MAM discovery and binary values. */
 static int ltotape_read_mam(void *device, const tape_partition_t part, uint8_t action,
     uint16_t id, unsigned char *buf, size_t size, size_t *received)
 {
@@ -1838,6 +1839,15 @@ static int ltotape_read_mam(void *device, const tape_partition_t part, uint8_t a
     return status;
 }
 
+/**------------------------------------------------------------------------**
+ * Read attribute
+ * @param device a pointer to the ltotape backend
+ * @param part partition to read attribute
+ * @param id attribute id to get
+ * @param buf pointer to the attribute buffer. This function will update this value.
+ * @param size length of the buffer
+ * @return 0 on success or a negative value on error
+ */
 int ltotape_read_attribute (void *device, const tape_partition_t part, const uint16_t id, unsigned char *buf, const size_t size)
 {
   ltotape_scsi_io_type *sio = (ltotape_scsi_io_type*)device;
