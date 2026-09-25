@@ -357,13 +357,13 @@ CloseHandle(h);
 /* status at reply+8, length at reply+12, serial text at reply+64 */
 ```
 
-**Reply format**
+#### Reply format
 
 | Offset | Type | Field |
 | --- | --- | --- |
 | 0 | uint32 | Magic `0x4C6E6957` (bytes "WinL") |
 | 4 | uint32 | Reply version: `1` |
-| 8 | int32 | Status: `0` on success, otherwise a negative LTFS error |
+| 8 | int32 | Status: `0` on success, otherwise a negative LTFS error (see [Status codes](#status-codes)) |
 | 12 | uint32 | Value length in bytes |
 | 16 | char[40] | UUID of the volume that answered |
 | 56 | 8 bytes | Reserved |
@@ -372,6 +372,19 @@ CloseHandle(h);
 All integers are little-endian. A non-zero status means the value could not be read; don't treat it as `0`.
 When reading several attributes, check that every reply carries the same volume
 UUID. If it changed, the tape was swapped and you should start again.
+
+#### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `0` | Success |
+| `-1040` | Attribute not present (on this tape, partition or path) |
+| `-1022` | Offset is past the end of the result |
+| `-1036` | The drive returned a malformed response |
+| `-1037` | Not supported by this drive (e.g. DAT) |
+
+If the request itself is invalid, or the tape changed while it was being answered,
+`DeviceIoControl` fails instead and no reply is written.
 
 ### Reading raw MAM
 
