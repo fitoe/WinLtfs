@@ -246,19 +246,170 @@ Usage: unltfs <options>
   -x, --fulltrace     display debug information (verbose)
 ```
 
-## Reading mounted tape attributes
+## Reading tape attributes
 
-Windows clients can read `ltfs.volumeSerial`, `ltfs.volumeUUID`, and other
-inexpensive metadata through extended attributes on the mounted volume root.
-EA caching is disabled so a cached identity does not survive a media change.
+A mounted tape exposes read-only information about the volume, the cartridge and
+its files. Nothing here writes to the tape or moves it, and values are read live,
+so a swapped tape is never reported with the old tape's values. Attribute IDs are
+fixed and never reused; the full list lives in
+[`ltog_attributes.h`](ltfs/src/libltfs/ltog_attributes.h).
 
-For explicit metadata, capacity, health, encryption, or file queries, use the
-output-only `DeviceIoControl` interface documented in
-[docs/attributes.md](docs/attributes.md). The attribute map is maintained in
-`ltfs/src/libltfs/ltog_attributes.h`.
+### Method 1 (Extended attributes)
 
-Complete MAM discovery and raw attribute reads are also available, including
-vendor-specific IDs on both partitions; see the protocol document above.
+The volume root lists these as extended attributes (EAs). EA caching is off, so
+they always reflect the tape currently loaded. List them for a tape mounted on `T:`:
+
+```powershell
+fsutil file queryEA T:\
+```
+
+They can also be read one at a time with [DeviceIoControl](#method-2-deviceiocontrol) using
+the IDs below.
+
+| ID | Attribute | Description |
+| --- | --- | --- |
+| `0x800` | `ltfs.volumeSerial` | Cartridge serial (volser) |
+| `0x801` | `ltfs.volumeUUID` | Unique ID of this LTFS volume |
+| `0x802` | `ltfs.volumeName` | Volume name set at format time |
+| `0x803` | `ltfs.volumeFormatTime` | When the tape was formatted |
+| `0x804` | `ltfs.volumeBlocksize` | Block size in bytes |
+| `0x805` | `ltfs.volumeCompression` | `true` if compression is enabled |
+| `0x806` | `ltfs.labelVersion` | LTFS label format version |
+| `0x807` | `ltfs.labelCreator` | Software that formatted the tape |
+| `0x808` | `ltfs.partitionMap` | Which partition holds the index and which holds the data |
+| `0x809` | `ltfs.indexGeneration` | Index generation number (increases on every update) |
+| `0x80a` | `ltfs.indexTime` | When the current index was written |
+| `0x80b` | `ltfs.indexVersion` | LTFS index format version |
+| `0x80c` | `ltfs.indexLocation` | Tape position of the current index |
+| `0x80d` | `ltfs.indexPrevious` | Tape position of the previous index |
+| `0x80e` | `ltfs.indexCreator` | Software that wrote the current index |
+| `0x80f` | `ltfs.commitMessage` | Commit message stored with the index |
+| `0x810` | `ltfs.policyExists` | `true` if a data placement policy is set |
+| `0x811` | `ltfs.policyAllowUpdate` | `true` if that policy may be changed |
+| `0x812` | `ltfs.policyMaxFileSize` | Largest file the policy keeps on the index partition, in bytes |
+| `0x813` | `ltfs.softwareVersion` | Version of this LTFS engine |
+| `0x814` | `ltfs.softwareFormatSpec` | LTFS format spec the engine implements |
+| `0x815` | `ltfs.softwareVendor` | Engine vendor |
+| `0x816` | `ltfs.softwareProduct` | Engine product name |
+| `0x817` | `ltfs.mamBarcode` | Barcode stored in cartridge memory |
+| `0x818` | `ltfs.mamVolumeName` | Volume name stored in cartridge memory |
+| `0x819` | `ltfs.mamApplicationVendor` | Vendor of the software that last wrote the tape |
+| `0x81a` | `ltfs.mamApplicationName` | Name of that software |
+| `0x81b` | `ltfs.mamApplicationVersion` | Version of that software |
+| `0x81c` | `ltfs.mamApplicationFormatVersion` | LTFS format version it wrote |
+
+### Method 2 (DeviceIoControl)
+
+These ask the drive or describe individual files, so they are not listed as EAs.
+Every EA above can also be read this way, using its ID.
+
+IDs `0x833` to `0x83a` work on any file or folder; the rest need the volume root.
+
+| ID | Attribute | Description |
+| --- | --- | --- |
+| `0x81d` | `ltfs.mediaDataPartitionTotalCapacity` | Data partition size, MiB |
+| `0x81e` | `ltfs.mediaDataPartitionAvailableSpace` | Free space on the data partition, MiB |
+| `0x81f` | `ltfs.mediaIndexPartitionTotalCapacity` | Index partition size, MiB |
+| `0x820` | `ltfs.mediaIndexPartitionAvailableSpace` | Free space on the index partition, MiB |
+| `0x821` | `ltfs.mediaLoads` | Times the cartridge has been loaded |
+| `0x822` | `ltfs.mediaRecoveredWriteErrors` | Write errors the drive recovered from |
+| `0x823` | `ltfs.mediaPermanentWriteErrors` | Write errors it could not recover |
+| `0x824` | `ltfs.mediaRecoveredReadErrors` | Read errors the drive recovered from |
+| `0x825` | `ltfs.mediaPermanentReadErrors` | Read errors it could not recover |
+| `0x826` | `ltfs.mediaPreviousPermanentWriteErrors` | Unrecovered write errors from the previous load |
+| `0x827` | `ltfs.mediaPreviousPermanentReadErrors` | Unrecovered read errors from the previous load |
+| `0x828` | `ltfs.mediaBeginningMediumPasses` | Passes over the start of the tape |
+| `0x829` | `ltfs.mediaMiddleMediumPasses` | Passes over the middle of the tape |
+| `0x82a` | `ltfs.mediaEfficiency` | Drive-reported tape efficiency |
+| `0x82b` | `ltfs.mediaDatasetsWritten` | Datasets written over the cartridge's lifetime |
+| `0x82c` | `ltfs.mediaDatasetsRead` | Datasets read over its lifetime |
+| `0x82d` | `ltfs.mediaMBWritten` | Megabytes written over its lifetime |
+| `0x82e` | `ltfs.mediaMBRead` | Megabytes read over its lifetime |
+| `0x82f` | `ltfs.mediaStorageAlert` | TapeAlert flags reported by the drive |
+| `0x830` | `ltfs.mediaEncrypted` | `true` if the cartridge holds encrypted data |
+| `0x831` | `ltfs.driveEncryptionState` | Drive encryption: `on`, `off` or `unknown` |
+| `0x832` | `ltfs.driveEncryptionMethod` | Drive encryption method |
+| `0x833` | `ltfs.fileUID` | Unique file ID within the volume |
+| `0x834` | `ltfs.createTime` | Creation time |
+| `0x835` | `ltfs.modifyTime` | Last content change |
+| `0x836` | `ltfs.accessTime` | Last access |
+| `0x837` | `ltfs.changeTime` | Last metadata change |
+| `0x838` | `ltfs.backupTime` | Backup time |
+| `0x839` | `ltfs.partition` | Partition holding the file's data |
+| `0x83a` | `ltfs.startblock` | First tape block of the file's data |
+| `0x83b` | Raw MAM | Lists and reads *every* attribute in cartridge memory, including vendor-specific ones. See [Reading raw MAM](#reading-raw-mam) |
+
+**Example in C/C++ (reading Volume Serial)**
+
+```c
+#include <windows.h>
+
+HANDLE h = CreateFileW(L"T:\\", FILE_READ_EA,
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+unsigned char reply[4096];
+DWORD got;
+/* control code = (0xC657 << 16) | (ID << 2); no input, 4096-byte output */
+DeviceIoControl(h, (0xC657u << 16) | (0x800u << 2), NULL, 0,
+    reply, sizeof(reply), &got, NULL);
+CloseHandle(h);
+/* status at reply+8, length at reply+12, serial text at reply+64 */
+```
+
+**Reply format**
+
+| Offset | Type | Field |
+| --- | --- | --- |
+| 0 | uint32 | Magic `0x474F544C` ("LTOG") |
+| 4 | uint32 | Reply version: `1` |
+| 8 | int32 | Status: `0` on success, otherwise a negative LTFS error |
+| 12 | uint32 | Value length in bytes |
+| 16 | char[40] | UUID of the volume that answered |
+| 56 | 8 bytes | Reserved |
+| 64 | char[4032] | The value as UTF-8 text (not NUL-terminated; use the length) |
+
+All integers are little-endian. A non-zero status means the value could not be read; don't treat it as `0`.
+When reading several attributes, check that every reply carries the same volume
+UUID. If it changed, the tape was swapped and you should start again.
+
+### Reading raw MAM
+
+Command `0x83b` reads cartridge memory directly in two steps: list the attribute
+IDs present, then read each one. Use control code `(0xC657 << 16) | (0x83B << 2)`
+with **4096-byte input and output buffers**. Zero the input buffer, then fill in:
+
+| Offset | Type | Field |
+| --- | --- | --- |
+| 0 | uint32 | Version: `1` |
+| 4 | uint8 | Operation: `0` = list IDs, `1` = read one attribute |
+| 5 | uint8 | Physical partition: `0` or `1` |
+| 6 | uint16 | Attribute ID to read (`0` when listing) |
+| 8 | uint32 | Byte offset to start from (`0` for the first page) |
+| 12 | uint32 | Reserved: `0` |
+
+The reply uses the reply format above with version `2`, and its reserved bytes carry
+paging information:
+
+| Offset | Type | Field |
+| --- | --- | --- |
+| 56 | uint32 | Total result size in bytes |
+| 60 | uint32 | Offset this page starts at |
+
+A result can be larger than one 4032-byte page. Repeat the request, adding the
+returned length to the offset, until you have the total.
+
+- **List result:** a sequence of 2-byte big-endian attribute IDs.
+- **Read result:** the attribute exactly as the drive stores it:
+
+| Bytes | Meaning |
+| --- | --- |
+| 0–1 | Attribute ID (big-endian) |
+| 2 | Bit 7 set = read-only; bits 0–1 = format (`0` binary, `1` ASCII, `2` text) |
+| 3–4 | Value length (big-endian) |
+| 5 onward | The value |
+
+The engine and every tape backend DLL must come from the same build, because
+raw MAM support adds a function to the backend interface.
 
 ## Testing
 
