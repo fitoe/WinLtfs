@@ -259,7 +259,12 @@ int getegid(void)
 
 char* strcasestr( const char* searchstr, const char* fromstr)
 {
-	return strstr( searchstr, fromstr );
+	size_t len = strlen( fromstr );
+
+	for ( ; *searchstr; searchstr++ )
+		if ( !_strnicmp( searchstr, fromstr, len ) )
+			return (char*)searchstr;
+	return len ? NULL : (char*)searchstr;
 }
 
 char *strtok_r(char *str, const char *delim, char **saveptr)
