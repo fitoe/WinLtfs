@@ -258,10 +258,30 @@ Attribute IDs are fixed and never reused; the full list lives in
 ### Method 1 (Extended attributes)
 
 The volume root lists these as extended attributes (EAs). EA caching is off, so
-they always reflect the tape currently loaded. List them for a tape mounted on `T:`:
+they always reflect the tape currently loaded. `fsutil file queryEA` can't list them
+because WinFsp reports every file's EA size as `0`; read them with `NtQueryEaFile`
+instead, for example in C/C++ for a tape mounted on `T:`:
 
-```powershell
-fsutil file queryEA T:\
+```c
+/* Open the volume root; BACKUP_SEMANTICS is required to open a directory */
+HANDLE root = CreateFileW(L"T:\\", FILE_READ_EA,
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+
+/* Read all EAs at once (NtQueryEaFile is exported by ntdll.dll) */
+static ULONG buf[65536 / sizeof(ULONG)];   /* entries are 4-byte aligned */
+IO_STATUS_BLOCK io;
+NtQueryEaFile(root, &io, buf, sizeof(buf), FALSE, NULL, 0, NULL, TRUE);
+CloseHandle(root);
+
+/* Walk the FILE_FULL_EA_INFORMATION entries; each value follows its name and a NUL */
+for (FILE_FULL_EA_INFORMATION *ea = (FILE_FULL_EA_INFORMATION *)buf; ;
+     ea = (FILE_FULL_EA_INFORMATION *)((char *)ea + ea->NextEntryOffset)) {
+    printf("%.*s = %.*s\n", ea->EaNameLength, ea->EaName,
+        ea->EaValueLength, ea->EaName + ea->EaNameLength + 1);
+    if (ea->NextEntryOffset == 0)
+        break;
+}
 ```
 
 They can also be read one at a time with [DeviceIoControl](#method-2-deviceiocontrol) using
