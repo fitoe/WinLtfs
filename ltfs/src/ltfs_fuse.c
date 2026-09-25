@@ -1846,13 +1846,13 @@ int ltfs_fuse_readlink(const char* path, char* buf, size_t size)
  * Fixed output-only commands for named attributes, plus a bounded MAM reader.
  * No arbitrary xattr names, setters, or filesystem mutations are accepted.
  */
-#include "libltfs/ltog_attributes.h"
-#include "libltfs/ltog_mam.h"
+#include "libltfs/attr_ioctl.h"
+#include "libltfs/mam_ioctl.h"
 #include "libltfs/tape.h"
 
-#define LTOG_RESPONSE_MAGIC 0x474f544c /* "LTOG" when read as little-endian bytes */
+#define ATTR_IOCTL_MAGIC 0x4c6e6957 /* "WinL" when read as little-endian bytes */
 
-struct ltog_attribute_response {
+struct attr_ioctl_response {
     uint32_t magic;
     uint32_t version;
     int32_t status;             /* raw LTFS error, or 0 */
@@ -1861,14 +1861,14 @@ struct ltog_attribute_response {
     char reserved[8];          /* v1: zero; v2: total length and byte offset */
     char value[4032];          /* v1: UTF-8; v2: raw MAM payload */
 };
-typedef char ltog_response_size_check[sizeof(struct ltog_attribute_response) == 4096 ? 1 : -1];
-typedef char ltog_request_size_check[sizeof(struct ltog_mam_request) == 16 ? 1 : -1];
+typedef char attr_ioctl_response_size_check[sizeof(struct attr_ioctl_response) == 4096 ? 1 : -1];
+typedef char mam_ioctl_request_size_check[sizeof(struct mam_ioctl_request) == 16 ? 1 : -1];
 
-static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
+static int mam_ioctl_query(struct ltfs_volume *vol, const char *path,
     unsigned int flags, void *data)
 {
-    struct ltog_mam_request request;
-    struct ltog_attribute_response *response = data;
+    struct mam_ioctl_request request;
+    struct attr_ioctl_response *response = data;
     unsigned char *raw;
     size_t received = 0, length = 0, size, count, i;
     uint32_t total;
@@ -1878,7 +1878,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
         return -EINVAL;
     /* WinFsp uses one METHOD_BUFFERED buffer for input and output. */
     memcpy(&request, data, sizeof(request));
-    if (!ltog_mam_request_valid(&request))
+    if (!mam_ioctl_request_valid(&request))
         return -EINVAL;
     if (!vol->device || !vol->device->backend->read_mam)
         return -ENOTTY;
@@ -1886,12 +1886,12 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
         if (((const unsigned char *)data)[i])
             return -EINVAL;
     memset(response, 0, sizeof(*response));
-    response->magic = LTOG_RESPONSE_MAGIC;
+    response->magic = ATTR_IOCTL_MAGIC;
     response->version = 2;
     ret = ltfs_test_unit_ready(vol);
     if (ret < 0)
         return errormap_fuse_error(ret);
-    size = ltog_mam_alloc(&request);
+    size = mam_ioctl_alloc(&request);
     raw = calloc(1, size);
     if (!raw)
         return -ENOMEM;
@@ -1926,7 +1926,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     releaseread_mrsw(&vol->lock);
     status = ret;
     if (!status)
-        status = ltog_mam_payload(raw, received, &request, &length);
+        status = mam_ioctl_payload(raw, received, &request, &length);
     ret = ltfs_test_unit_ready(vol);
     if (ret < 0) {
         free(raw);
@@ -1959,26 +1959,26 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
     return 0;
 }
 
-static int ltog_query_attribute(struct ltfs_volume *vol, const char *path,
+static int attr_ioctl_query(struct ltfs_volume *vol, const char *path,
     unsigned int cmd, unsigned int flags, void *data)
 {
-    const struct ltog_attribute *attribute = NULL;
-    struct ltog_attribute_response *response = data;
+    const struct attr_ioctl *attribute = NULL;
+    struct attr_ioctl_response *response = data;
     ltfs_file_id id;
     int ret;
     size_t i;
     if (flags || !data || !path || !vol)
         return -EINVAL;
-    for (i = 0; i < LTOG_ATTRIBUTE_COUNT; ++i) {
-        if (cmd == (unsigned int)FSP_FUSE_IOCTL(ltog_attributes[i].id, 0, 4096)) {
-            attribute = &ltog_attributes[i];
+    for (i = 0; i < ATTR_IOCTL_COUNT; ++i) {
+        if (cmd == (unsigned int)FSP_FUSE_IOCTL(attr_ioctls[i].id, 0, 4096)) {
+            attribute = &attr_ioctls[i];
             break;
         }
     }
     if (!attribute)
         return -ENOTTY;
     memset(response, 0, sizeof(*response));
-    response->magic = LTOG_RESPONSE_MAGIC;
+    response->magic = ATTR_IOCTL_MAGIC;
     response->version = 1;
     /* Same device handle as the mount; no tape movement unless the engine
      * needs its normal media-change revalidation. Nothing is synchronized. */
@@ -2012,9 +2012,9 @@ static int ltfs_fuse_ioctl(const char *path, int cmd, void *arg,
     struct fuse_file_info *fi, unsigned int flags, void *data)
 {
     struct ltfs_fuse_data *priv = fuse_get_context()->private_data;
-    if ((unsigned int)cmd == (unsigned int)FSP_FUSE_IOCTL(LTOG_MAM_COMMAND, 4096, 4096))
-        return ltog_query_mam(priv->data, path, flags, data);
-    return ltog_query_attribute(priv->data, path, (unsigned int)cmd, flags, data);
+    if ((unsigned int)cmd == (unsigned int)FSP_FUSE_IOCTL(MAM_IOCTL_COMMAND, 4096, 4096))
+        return mam_ioctl_query(priv->data, path, flags, data);
+    return attr_ioctl_query(priv->data, path, (unsigned int)cmd, flags, data);
 }
 #endif
 

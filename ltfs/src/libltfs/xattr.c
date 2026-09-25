@@ -65,7 +65,7 @@
 #include "arch/filename_handling.h" // HPE MD 22/09/2017 Added support for SNIA 2.4 percent encoding
 #include "xattr.h"
 #ifdef mingw_PLATFORM
-#include "ltog_attributes.h"
+#include "attr_ioctl.h"
 #endif
 #include "fs.h"
 #include "xml_libltfs.h"
@@ -371,13 +371,13 @@ int xattr_list(struct dentry *d, char *list, size_t size, struct ltfs_volume *vo
 	 * diagnostics and file metadata use the output-only query interface. */
 	if (d == vol->index->root) {
 		size_t i;
-		for (i = 0; i < LTOG_ATTRIBUTE_COUNT; ++i) {
+		for (i = 0; i < ATTR_IOCTL_COUNT; ++i) {
 			size_t length;
-			if (!ltog_attributes[i].ea)
+			if (!attr_ioctls[i].ea)
 				continue;
-			length = strlen(ltog_attributes[i].name) + 1;
+			length = strlen(attr_ioctls[i].name) + 1;
 			if (size && (size_t)nbytes + length <= size)
-				memcpy(list + nbytes, ltog_attributes[i].name, length);
+				memcpy(list + nbytes, attr_ioctls[i].name, length);
 			nbytes += length;
 		}
 	}

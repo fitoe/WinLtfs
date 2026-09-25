@@ -253,7 +253,7 @@ its files. Nothing here writes to the tape. Queries don't move it, except that t
 first query after a tape change triggers the usual re-read of the index. Values are
 read live, so a swapped tape is never reported with the old tape's values.
 Attribute IDs are fixed and never reused; the full list lives in
-[`ltog_attributes.h`](ltfs/src/libltfs/ltog_attributes.h).
+[`attr_ioctl.h`](ltfs/src/libltfs/attr_ioctl.h).
 
 ### Method 1 (Extended attributes)
 
@@ -361,7 +361,7 @@ CloseHandle(h);
 
 | Offset | Type | Field |
 | --- | --- | --- |
-| 0 | uint32 | Magic `0x474F544C` ("LTOG") |
+| 0 | uint32 | Magic `0x4C6E6957` (bytes "WinL") |
 | 4 | uint32 | Reply version: `1` |
 | 8 | int32 | Status: `0` on success, otherwise a negative LTFS error |
 | 12 | uint32 | Value length in bytes |

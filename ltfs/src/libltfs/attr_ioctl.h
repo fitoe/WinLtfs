@@ -3,10 +3,10 @@
  * part of the client protocol and must not be renumbered or reused.
  * root: query only on the volume root. ea: include in root EA enumeration.
  */
-#ifndef LTOG_ATTRIBUTES_H
-#define LTOG_ATTRIBUTES_H
-struct ltog_attribute { unsigned int id; const char *name; int root; int ea; };
-static const struct ltog_attribute ltog_attributes[] = {
+#ifndef ATTR_IOCTL_H
+#define ATTR_IOCTL_H
+struct attr_ioctl { unsigned int id; const char *name; int root; int ea; };
+static const struct attr_ioctl attr_ioctls[] = {
     {0x800, "ltfs.volumeSerial", 1, 1 },
     {0x801, "ltfs.volumeUUID", 1, 1 },
     {0x802, "ltfs.volumeName", 1, 1 },
@@ -67,5 +67,5 @@ static const struct ltog_attribute ltog_attributes[] = {
     {0x839, "ltfs.partition", 0, 0 },
     {0x83a, "ltfs.startblock", 0, 0 },
 };
-#define LTOG_ATTRIBUTE_COUNT (sizeof(ltog_attributes) / sizeof(ltog_attributes[0]))
+#define ATTR_IOCTL_COUNT (sizeof(attr_ioctls) / sizeof(attr_ioctls[0]))
 #endif
