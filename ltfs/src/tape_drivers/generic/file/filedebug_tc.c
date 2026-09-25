@@ -1180,17 +1180,21 @@ static int filedebug_read_mam(void *vstate, const tape_partition_t part, uint8_t
         free(fname);
         if (fd < 0)
             return errno == ENOENT ? -LTFS_NO_XATTR : -EDEV_CM_PERM;
-        if (fstat(fd, &st) < 0 || st.st_size < 5 || (uint64_t)st.st_size > size - 4) {
+        if (fstat(fd, &st) < 0 || st.st_size < 5 || st.st_size > 5 + 65535) {
             close(fd);
             return -LTFS_UNEXPECTED_VALUE;
         }
-        n = read(fd, buf + 4, (size_t)st.st_size);
+        /* Like the drive: truncate at the allocation length, report full length. */
+        length = (size_t)st.st_size < size - 4 ? (size_t)st.st_size : size - 4;
+        n = read(fd, buf + 4, length);
         close(fd);
-        if (n != st.st_size)
+        if (n < 0 || (size_t)n != length)
             return -EDEV_CM_PERM;
-        length = n;
-        if (length != 5u + ltfs_betou16(buf + 7))
+        if (length >= 5 && (size_t)st.st_size != 5u + ltfs_betou16(buf + 7))
             return -LTFS_UNEXPECTED_VALUE;
+        ltfs_u32tobe(buf, (uint32_t)st.st_size);
+        *received = length + 4;
+        return 0;
     }
     ltfs_u32tobe(buf, (uint32_t)length);
     *received = length + 4;
