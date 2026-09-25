@@ -1850,6 +1850,8 @@ int ltfs_fuse_readlink(const char* path, char* buf, size_t size)
 #include "libltfs/ltog_mam.h"
 #include "libltfs/tape.h"
 
+#define LTOG_RESPONSE_MAGIC 0x474f544c /* "LTOG" when read as little-endian bytes */
+
 struct ltog_attribute_response {
     uint32_t magic;
     uint32_t version;
@@ -1884,7 +1886,7 @@ static int ltog_query_mam(struct ltfs_volume *vol, const char *path,
         if (((const unsigned char *)data)[i])
             return -EINVAL;
     memset(response, 0, sizeof(*response));
-    response->magic = 0x474f544c;
+    response->magic = LTOG_RESPONSE_MAGIC;
     response->version = 2;
     ret = ltfs_test_unit_ready(vol);
     if (ret < 0)
@@ -1976,7 +1978,7 @@ static int ltog_query_attribute(struct ltfs_volume *vol, const char *path,
     if (!attribute)
         return -ENOTTY;
     memset(response, 0, sizeof(*response));
-    response->magic = 0x474f544c; /* LTOG, little endian */
+    response->magic = LTOG_RESPONSE_MAGIC;
     response->version = 1;
     /* Same device handle as the mount; no tape movement unless the engine
      * needs its normal media-change revalidation. Nothing is synchronized. */
