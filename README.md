@@ -16,17 +16,13 @@ Mount, Format, and Test LTFS tapes on Windows with [WinFsp](https://winfsp.dev).
 
 ## Features
 
+- 🪟 Supports Windows 7 to Windows 11 (64-bit only)
 - 📼 LTO-5 to LTO-9 Support including WORM and Type-M
 - 💽 Mount LTO tapes as Virtual Drives
 - 🗂️ Format, Unformat, and Test LTO tapes
 - 💾 Automatic Tape Index Backups
 - 🔒 Honors Write-Protection and Read-Only tapes
 - 🏷️ Real Cartridge Label shown in Explorer
-
-## Requirements
-
-- Windows 7 / Server 2008 R2 through to Windows 10, 11 and the latest Windows Server (64-bit only)
-- An LTO-5 or newer cartridge with a compatible LTO Tape Drive
 
 ## Supported Tape Drives
 
