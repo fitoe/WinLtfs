@@ -905,6 +905,9 @@ int ltfs_fuse_mkdir(const char *path, fuse_mode_t mode)
 
 	ltfsmsg(LTFS_DEBUG, "14041D", path);
 
+	if (strcasecmp(path, "/$RECYCLE.BIN") == 0)
+		return -EACCES;
+
 	ret = ltfs_fsops_create(path, true, false, (struct dentry **)&dentry_handle, priv->data);
 	if (ret == 0) {
 		
