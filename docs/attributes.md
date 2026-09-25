@@ -113,40 +113,9 @@ Discard the whole report on transport failure or UUID changes, and retry if
 lengths or the enumerated list change. Values can still change without changing
 their lengths while a mounted volume is in use.
 
-Export both partitions as JSON with Python 3 on Windows:
-
-```powershell
-python tools/mam_dump.py T:\ --output mam.json
-```
-
-The export includes ID, raw hex, format, read-only flag, and per-attribute errors;
-ASCII values also have a text field. Exit status is 0 for a complete report,
-2 for a report with getter errors, and 1 for transport/protocol failure. It does
-not write a new report after transport/protocol failure. Actual available IDs
-depend on the cartridge and drive; this interface covers accessible MAM data,
-not hidden firmware data or unsupported attributes.
+Actual available IDs depend on the cartridge and drive; this interface covers
+accessible MAM data, not hidden firmware data or unsupported attributes.
 
 The tape backend ABI adds `read_mam`: rebuild and distribute the engine and
 backend DLLs together. Both the Windows tape backend and file emulator implement
 it. Do not combine this engine with older or unrecompiled third-party backends.
-
-## Validation
-
-In an MSYS2 MINGW64 shell, run the protocol boundary tests:
-
-```sh
-gcc -Wall -Wextra -Werror -Iltfs/src/libltfs tests/mam_payload_test.c -o build/mam_payload_test.exe
-./build/mam_payload_test.exe
-```
-
-After building/staging the engine and file backend, run on Windows:
-
-```powershell
-python tests/mam_integration.py build/mam-dist
-```
-
-The integration test creates a new file-emulator tape and chooses an unused
-drive letter. It checks ID-list pagination, both partitions, a 65535-byte value,
-empty/missing/truncated attributes, invalid requests, JSON export and the
-unchanged version-1 interface. It stops only its own emulator process and retains
-fixtures/logs under `build/`. Real-drive MAM compatibility needs hardware validation.

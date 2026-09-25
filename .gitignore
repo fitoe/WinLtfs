@@ -42,7 +42,3 @@ libtool
 *.log
 *.swp
 .vs/
-
-# Python diagnostic tools and tests
-__pycache__/
-*.pyc
